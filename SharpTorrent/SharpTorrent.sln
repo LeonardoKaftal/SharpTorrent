@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpTorrent", "SharpTorrent.csproj", "{FD76ADC9-BB74-44E3-8FF7-504709BA6B63}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpTorrent.Tests", "..\SharpTorrent.Tests\SharpTorrent.Tests.csproj", "{27C08D50-F24E-40AF-8DC6-5E19555E816A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FD76ADC9-BB74-44E3-8FF7-504709BA6B63}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FD76ADC9-BB74-44E3-8FF7-504709BA6B63}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FD76ADC9-BB74-44E3-8FF7-504709BA6B63}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FD76ADC9-BB74-44E3-8FF7-504709BA6B63}.Release|Any CPU.Build.0 = Release|Any CPU
+		{27C08D50-F24E-40AF-8DC6-5E19555E816A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{27C08D50-F24E-40AF-8DC6-5E19555E816A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{27C08D50-F24E-40AF-8DC6-5E19555E816A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{27C08D50-F24E-40AF-8DC6-5E19555E816A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
