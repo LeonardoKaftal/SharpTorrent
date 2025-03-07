@@ -5,26 +5,31 @@ namespace SharpTorrent.Bencode;
 public class BencodeParser
 {
 
-   // index to traverse the bencode
+   // global index to traverse the bencode
    private int _index  = 0;
    
-   public object ParseBencode(string bencode)
+   public object ParseBencode(byte[] bencode)
    {
-      if (string.IsNullOrEmpty(bencode)) throw new FormatException($"Invalid bencode: Is empty");
+      if (bencode.Length == 0) throw new FormatException($"Invalid bencode: Is empty");
       var parsedValue = ParseValue(bencode);
-      return parsedValue switch
+      switch (parsedValue)
       {
-         Dictionary<string, object> dictionary => dictionary,
-         string stringValue => stringValue,
-         int intValue => intValue,
-         List<object> list => list,
-         _ => throw new FormatException("Invalid bencode: impossible to parse the bencode")
-      };
+         case Dictionary<string, object> dictionary:
+            return dictionary;
+         case string stringValue:
+            return stringValue;
+         case int intValue:
+            return intValue;
+         case List<object> list:
+            return list;
+      }
+
+      throw new FormatException("Invalid bencode: impossible to parse the bencode");
    }
 
-   private object ParseValue(string bencode)
+   private object ParseValue(byte[] bencode)
    {
-      var c = bencode[_index];
+      var c = (char)(bencode[_index]);
       
       return c switch
       {
@@ -35,41 +40,34 @@ public class BencodeParser
       };
    }
 
-   private Dictionary<string, object> HandleDictionary(string bencode)
+   private Dictionary<string, object> HandleDictionary(byte[] bencode)
    {
-      // skip d
-      _index++;
+      _index++; // skip 'd'
+      var result = new Dictionary<string, object>();
 
-      
-      char c;
-      var toReturn = new Dictionary<string, object>();
-
-      try
+      while (_index < bencode.Length && bencode[_index] != 'e')
       {
-         do
-         {
-            var key = HandleString(bencode);
-            var value = ParseValue(bencode);
-            toReturn.Add(key, value);
-            c = bencode[_index];
-         } while (c != 'e');
-      }
-      catch (IndexOutOfRangeException)
-      {
-         throw new FormatException("Invalid bencode: the dictionary is not closed");
+        var key = HandleString(bencode);
+        
+        if (_index >= bencode.Length)
+            throw new FormatException("Invalid bencode: unexpected end in dictionary");
+        
+        var value = ParseValue(bencode);
+        result.Add(key, value);
       }
 
-      // skip e
-      _index++;
-      
-      return toReturn;
+      if (_index >= bencode.Length) throw new FormatException("Invalid bencode: unterminated dictionary");
+
+      _index++; // skip 'e'
+      return result;
    }
    
    
-   private List<object> HandleList(string bencode)
+   private List<object> HandleList(byte[] bencode)
    {
       // skip l
       _index++;
+      
       char c;
       List<object> toReturn = [];
 
@@ -79,7 +77,7 @@ public class BencodeParser
          toReturn.Add(value);
 
          if (_index == bencode.Length) throw new FormatException("Invalid bencode: the list is not closed");
-         c = bencode[_index];
+         c = (char)(bencode[_index]);
       } while (c != 'e');
       
       // skip e
@@ -88,59 +86,65 @@ public class BencodeParser
       return toReturn;
    }
 
-   private string HandleString(string bencode)
+   private string HandleString(byte[] bencode)
    {
-      var sb = new StringBuilder();
-      var c = bencode[_index];
-
+      var start = _index;
+      var end = _index;
+      var c = (char) (bencode[end]);
+      
       while (char.IsDigit(c))
       {
-         sb.Append(c);
          _index++;
-         c = bencode[_index];
+         end++;
+         c = (char)(bencode[end]);
       }
+      
+      // if start == _index then it means a lenght has not been extracted because there were no numeric chars
+      if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
 
-      var lenghtString = sb.ToString();
-      if (string.IsNullOrEmpty(lenghtString)) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
-
-      var length = int.Parse(lenghtString);
+      var length= int.Parse(new ArraySegment<byte>(bencode, offset: start, count: end - start));
 
       if (_index + length >= bencode.Length)
          throw new FormatException($"Invalid bencode: current index: {_index}" +
                                    $"+ string length {length} exceed bencode length");
+
+      if (bencode[_index] != ':') throw new FormatException("Invalid bencode: string miss : at index " + _index);
       // skip :
       _index++;
-      
-      var result = bencode.Substring(_index, length);
+
+      var content = new ArraySegment<byte>(bencode, _index, length);
+      var result = Encoding.UTF8.GetString(content);
       _index += length;
       
       return result;
    }
 
-   private int HandleInteger(string bencode)
+   private int HandleInteger(byte[] bencode)
    {
-      var sb = new StringBuilder();
       // skip i
       _index++;
-      var c = bencode[_index];
+      
+      var start = _index;
+      var end = _index; 
+      
+      var c = (char)(bencode[_index]);
 
-      while (c != 'e')
+      while (c != 'e' && _index != bencode.Length) 
       {
-         if (!char.IsDigit(c)) throw new FormatException($"Invalid bencode: at index {_index} there is not a number");
-         sb.Append(c);
-         
+         if (!char.IsDigit(c) && c != '-') throw new FormatException($"Invalid bencode: at index {_index} there is not a number");
+         end++; 
          _index++;
-         c = bencode[_index];
-         // index out of bounds, it miss the e for closing the integer 
-         if (_index == bencode.Length) throw new FormatException("Invalid bencode: the dictionary is not closed");
+         c = (char)(bencode[_index]);
       }
       
-      // bencoded integer can't start with a 0 unless they are exacltly zero, so i04e is illegal
-      if (sb.ToString()[0] == '0') throw new FormatException("Invalid bencode: the number at index {_index} start with a 0");
+      // index out of bounds, it misses the e for closing the integer 
+      if (_index == bencode.Length) throw new FormatException("Invalid bencode: the dictionary is not closed");
+
+      var num = int.Parse(new ArraySegment<byte>(bencode, offset: start, count: end - start));
       
       // skip e
       _index++;
-      
-      return int.Parse(sb.ToString());
+
+      return num;
    }
 }
