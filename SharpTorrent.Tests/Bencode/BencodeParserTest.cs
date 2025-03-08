@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Text;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -22,8 +23,8 @@ public class BencodeParserTest
         var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
         
         List<object> expected = [
-             "spam", 3, 
-             "pieces", new List<object> { 45, "abc" } 
+             "spam", BigInteger.Parse("3"), 
+             "pieces", new List<object> { BigInteger.Parse("45"), "abc" } 
         ];
 
         act.Should().BeEquivalentTo(expected);
@@ -43,11 +44,11 @@ public class BencodeParserTest
         
         var expected = new Dictionary<string, object>
         {
-            { "length", 12345 },
+            { "length", BigInteger.Parse("12345")},
             { "name", "file.txt" },
             { "info", new Dictionary<string, object>
                 {
-                    { "piece length", 512 },
+                    { "piece length", BigInteger.Parse("512") },
                     { "pieces", "abcdef123456" }
                 }
             }

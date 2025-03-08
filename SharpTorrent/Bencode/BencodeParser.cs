@@ -1,3 +1,4 @@
+using System.Numerics;
 using System.Text;
 
 namespace SharpTorrent.Bencode;
@@ -102,7 +103,7 @@ public class BencodeParser
       // if start == _index then it means a lenght has not been extracted because there were no numeric chars
       if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
 
-      var length= int.Parse(new ArraySegment<byte>(bencode, offset: start, count: end - start));
+      var length= int.Parse(new ReadOnlySpan<byte>(bencode, start: start, length: end - start));
 
       if (_index + length >= bencode.Length)
          throw new FormatException($"Invalid bencode: current index: {_index}" +
@@ -112,14 +113,14 @@ public class BencodeParser
       // skip :
       _index++;
 
-      var content = new ArraySegment<byte>(bencode, _index, length);
+      var content = new ReadOnlySpan<byte>(bencode, _index, length);
       var result = Encoding.UTF8.GetString(content);
       _index += length;
       
       return result;
    }
 
-   private int HandleInteger(byte[] bencode)
+   private BigInteger HandleInteger(byte[] bencode)
    {
       // skip i
       _index++;
@@ -140,7 +141,8 @@ public class BencodeParser
       // index out of bounds, it misses the e for closing the integer 
       if (_index == bencode.Length) throw new FormatException("Invalid bencode: the dictionary is not closed");
 
-      var num = int.Parse(new ArraySegment<byte>(bencode, offset: start, count: end - start));
+      var numStr = System.Text.Encoding.ASCII.GetString(bencode, start, end - start);
+      var num = BigInteger.Parse(numStr);
       
       // skip e
       _index++;
