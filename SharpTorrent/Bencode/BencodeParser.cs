@@ -97,14 +97,15 @@ public class BencodeParser
       {
          _index++;
          end++;
-         c = (char)(bencode[end]);
+         c = (char)bencode[end];
       }
       
       // if start == _index then it means a lenght has not been extracted because there were no numeric chars
       if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
 
       var length= int.Parse(new ReadOnlySpan<byte>(bencode, start: start, length: end - start));
-
+      if (length == 0) return "";
+      
       if (_index + length >= bencode.Length)
          throw new FormatException($"Invalid bencode: current index: {_index}" +
                                    $"+ string length {length} exceed bencode length");
@@ -128,20 +129,20 @@ public class BencodeParser
       var start = _index;
       var end = _index; 
       
-      var c = (char)(bencode[_index]);
+      var c = (char)bencode[_index];
 
       while (c != 'e' && _index != bencode.Length) 
       {
          if (!char.IsDigit(c) && c != '-') throw new FormatException($"Invalid bencode: at index {_index} there is not a number");
          end++; 
          _index++;
-         c = (char)(bencode[_index]);
+         c = (char)bencode[_index];
       }
       
       // index out of bounds, it misses the e for closing the integer 
       if (_index == bencode.Length) throw new FormatException("Invalid bencode: the dictionary is not closed");
 
-      var numStr = System.Text.Encoding.ASCII.GetString(bencode, start, end - start);
+      var numStr = Encoding.ASCII.GetString(bencode, start, end - start);
       var num = BigInteger.Parse(numStr);
       
       // skip e

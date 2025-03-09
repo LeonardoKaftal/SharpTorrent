@@ -1,5 +1,4 @@
-﻿using System.Text;
-using SharpTorrent.Torrent;
+﻿using SharpTorrent.Torrent;
 
 if (args.Length < 1)
 {
@@ -12,7 +11,5 @@ foreach (var line in File.ReadLines("Banner.txt"))
     Thread.Sleep(50);
 }
 
-var torrentBencode = new TorrentBencode();
 var bencodeToParse = File.ReadAllBytes(args[0]); 
-var bencode = (Dictionary<string, object>) torrentBencode.ParseBencode(bencodeToParse);
-Console.WriteLine(bencode);
+var torrentBencode = new TorrentMetadata(bencodeToParse);
