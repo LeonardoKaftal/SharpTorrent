@@ -1,4 +1,4 @@
-using System.Numerics;
+using System.Reflection;
 using System.Text;
 
 namespace SharpTorrent.Bencode
@@ -7,10 +7,30 @@ namespace SharpTorrent.Bencode
     {
         public string EncodeToBencode(object value)
         {
-            StringBuilder builder = new StringBuilder();
+            var builder = new StringBuilder();
+            // if is not a dictionary or a primitive try to convert the class to a dictionary
+            if (value is not Dictionary<string, object> && value is not (string or int or long or double or bool))
+            {
+                value = EncodeClassToDictionary(value);
+            }
             EncodeValue(value, builder);
             return builder.ToString();
         }
+
+    private Dictionary<string, object> EncodeClassToDictionary(object value)
+    {
+        var toReturn = new Dictionary<string, object>();
+
+        foreach (var field in value.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            var fieldName = char.ToLower(field.Name[0]) + field.Name[1..];
+            var valueOfField = field.GetValue(value);
+            if (valueOfField == null) continue;
+            toReturn.Add(fieldName, valueOfField);
+        }
+
+        return toReturn;
+    }
 
         private void EncodeValue(object value, StringBuilder builder)
         {
@@ -19,14 +39,8 @@ namespace SharpTorrent.Bencode
                 case string stringValue:
                     EncodeString(stringValue, builder);
                     break;
-                case int intValue:
-                    EncodeInteger(intValue, builder);
-                    break;
-                case long longValue:
-                    EncodeInteger(longValue, builder);
-                    break;
-                case BigInteger bigIntValue:
-                    EncodeInteger(bigIntValue, builder);
+                case int or long or ulong or ushort or double or float or uint:
+                    EncodeInteger(Convert.ToInt64(value), builder);
                     break;
                 case Dictionary<string, object> dictionaryValue:
                     EncodeDictionary(dictionaryValue, builder);
@@ -42,6 +56,13 @@ namespace SharpTorrent.Bencode
             }
         }
 
+        private void EncodeInteger(dynamic num, StringBuilder builder)
+        {
+            builder.Append('i');
+            builder.Append(num.ToString());
+            builder.Append('e');
+        }
+
         private void EncodeString(string value, StringBuilder builder)
         {
             builder.Append(value.Length);
@@ -54,20 +75,6 @@ namespace SharpTorrent.Bencode
             builder.Append(value.Length);
             builder.Append(':');
             builder.Append(Encoding.ASCII.GetString(value));
-        }
-
-        private void EncodeInteger(BigInteger value, StringBuilder builder)
-        {
-            builder.Append('i');
-            builder.Append(value.ToString());
-            builder.Append('e');
-        }
-
-        private void EncodeInteger(long value, StringBuilder builder)
-        {
-            builder.Append('i');
-            builder.Append(value.ToString());
-            builder.Append('e');
         }
 
         private void EncodeDictionary(Dictionary<string, object> dict, StringBuilder builder)
@@ -100,7 +107,3 @@ namespace SharpTorrent.Bencode
         }
     }
 }
-
-
-
-

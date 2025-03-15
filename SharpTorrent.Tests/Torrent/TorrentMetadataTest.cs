@@ -24,8 +24,8 @@ public class TorrentMetadataTest
             ["info"] = new Dictionary<string, object>
             {
                 ["pieces"] = "1234567890abcdefghijabcdefghij1234567890",
-                ["piece length"] = new BigInteger(262144),
-                ["length"] = new BigInteger(351272960),
+                ["piece length"] = (ulong) 262144,
+                ["length"] = (ulong) 351272960,
                 ["name"] = "debian-10.2.0-amd64-netinst.iso"
             }
         };
@@ -40,26 +40,25 @@ public class TorrentMetadataTest
         
         actual.Announce.Should().Be(expected["announce"] as string);
         var infoDict = expected["info"] as Dictionary<string, object>;
-        actual.Info.Length.Should().Be((BigInteger)(infoDict["length"]));
+        actual.Info.Length.Should().Be((ulong)infoDict["length"]);
         actual.Info.Name.Should().Be(infoDict["name"] as string);
         actual.Info.Pieces.Should().Be(infoDict["pieces"] as string);
-        actual.Info.PieceLength.Should().Be((BigInteger)(infoDict["piece length"]));
+        actual.Info.PieceLength.Should().Be((ulong)infoDict["piece length"]);
     }
 
     [Fact]
     public void TorrentMetadata_TestConstructorWithNoAnnounce_ThrowFormatException()
     {
-        var bencode =
-            "d4:infod6:lengthi351272960e4:name31:debian-10.2.0-amd64-netinst.iso12:piece lengthi262144e6:pieces40:1234567890abcdefghijabcdefghij1234567890ee";
+        const string bencode = "d4:infod6:lengthi351272960e4:name31:debian-10.2.0-amd64-netinst.iso12:piece lengthi262144e6:pieces40:1234567890abcdefghijabcdefghij1234567890ee";
         var actual = () => new TorrentMetadata(Encoding.UTF8.GetBytes(bencode));
         actual.Should().Throw<FormatException>().WithMessage("Invalid torrent: *");
+        
     }
     
     [Fact]
     public void TorrentMetadata_TestConstructorWithNoFilesOrLength_ThrowFormatException()
     {
-        var bencode =
-            "d8:announce41:http://bttracker.debian.org:6969/announce4:infod4:name31:debian-10.2.0-amd64-netinst.iso12:piece lengthi262144e6:pieces40:1234567890abcdefghijabcdefghij1234567890ee";
+        const string bencode = "d8:announce41:http://bttracker.debian.org:6969/announce4:infod4:name31:debian-10.2.0-amd64-netinst.iso12:piece lengthi262144e6:pieces40:1234567890abcdefghijabcdefghij1234567890ee";
         var actual = () => new TorrentMetadata(Encoding.UTF8.GetBytes(bencode));
         actual.Should().Throw<FormatException>().WithMessage("Invalid torrent: *");
     }

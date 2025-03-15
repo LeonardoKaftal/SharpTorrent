@@ -2,8 +2,8 @@ using System.Numerics;
 
 namespace SharpTorrent.Torrent;
 
-public class TorrentFile(BigInteger length, string path)
+public class TorrentFile(ulong length, string path)
 {
-    public BigInteger Length = length;
-    public string Path = path;
+    public readonly ulong Length = length;
+    public readonly string Path = path;
 }

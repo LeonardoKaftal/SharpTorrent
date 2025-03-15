@@ -23,8 +23,8 @@ public class BencodeParserTest
         var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
         
         List<object> expected = [
-             "spam", BigInteger.Parse("3"), 
-             "pieces", new List<object> { BigInteger.Parse("45"), "abc" } 
+             "spam", (long) 3, 
+             "pieces", new List<object> { (long)45, "abc" } 
         ];
 
         act.Should().BeEquivalentTo(expected);
@@ -44,11 +44,11 @@ public class BencodeParserTest
         
         var expected = new Dictionary<string, object>
         {
-            { "length", BigInteger.Parse("12345")},
+            { "length", (long)12345},
             { "name", "file.txt" },
             { "info", new Dictionary<string, object>
                 {
-                    { "piece length", BigInteger.Parse("512") },
+                    { "piece length", (long)512},
                     { "pieces", "abcdef123456" }
                 }
             }

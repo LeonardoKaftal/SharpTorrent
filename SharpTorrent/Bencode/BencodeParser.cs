@@ -121,7 +121,7 @@ public class BencodeParser
       return result;
    }
 
-   private BigInteger HandleInteger(byte[] bencode)
+   private long HandleInteger(byte[] bencode)
    {
       // skip i
       _index++;
@@ -143,7 +143,7 @@ public class BencodeParser
       if (_index == bencode.Length) throw new FormatException("Invalid bencode: the dictionary is not closed");
 
       var numStr = Encoding.ASCII.GetString(bencode, start, end - start);
-      var num = BigInteger.Parse(numStr);
+      var num = long.Parse(numStr);
       
       // skip e
       _index++;

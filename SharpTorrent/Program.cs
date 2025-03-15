@@ -12,4 +12,4 @@ foreach (var line in File.ReadLines("Banner.txt"))
 }
 
 var bencodeToParse = File.ReadAllBytes(args[0]); 
-var torrentBencode = new TorrentMetadata(bencodeToParse);
+var torrent = new TorrentMetadata(bencodeToParse);
