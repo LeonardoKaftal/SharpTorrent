@@ -9,11 +9,11 @@ public class TrackerRequest(
     ulong left,
     ushort @event)
 {
-    public byte[] InfoHash { get; private set; } = infoHash;
+    public readonly byte[] InfoHash = infoHash;
     public string PeerId = peerId;
-    public uint Port { get; private set; } = port;
-    public ulong Uploaded { get; private set; } = uploaded;
-    public ulong Downloaded { get; private set; } = downloaded;
+    public readonly uint Port = port;
+    public readonly ulong Uploaded = uploaded;
+    public readonly ulong Downloaded = downloaded;
     public ulong Left = left;
-    public uint Event { get; private set; } = @event;
+    public readonly uint Event = @event;
 }
