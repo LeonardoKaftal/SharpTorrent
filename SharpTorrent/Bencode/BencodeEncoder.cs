@@ -5,105 +5,103 @@ namespace SharpTorrent.Bencode
 {
     public class BencodeEncoder
     {
-        public string EncodeToBencode(object value)
+        public byte[] EncodeToBencode(object value)
         {
-            var builder = new StringBuilder();
+            using var stream = new MemoryStream();
             // if is not a dictionary or a primitive try to convert the class to a dictionary
-            if (value is not Dictionary<string, object> && value is not (string or int or long or double or bool))
+            if (value is not Dictionary<string, object> && value is not (string or int or long or double or bool or byte[]))
             {
                 value = EncodeClassToDictionary(value);
             }
-            EncodeValue(value, builder);
-            return builder.ToString();
+            EncodeValue(value, stream);
+            return stream.ToArray();
         }
 
-    private Dictionary<string, object> EncodeClassToDictionary(object value)
-    {
-        var toReturn = new Dictionary<string, object>();
-
-        foreach (var field in value.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+        private Dictionary<string, object> EncodeClassToDictionary(object value)
         {
-            var fieldName = char.ToLower(field.Name[0]) + field.Name[1..];
-            var valueOfField = field.GetValue(value);
-            if (valueOfField == null) continue;
-            toReturn.Add(fieldName, valueOfField);
+            var toReturn = new Dictionary<string, object>();
+            foreach (var field in value.GetType().GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var fieldName = char.ToLower(field.Name[0]) + field.Name[1..];
+                var valueOfField = field.GetValue(value);
+                if (valueOfField == null) continue;
+                toReturn.Add(fieldName, valueOfField);
+            }
+            return toReturn;
         }
 
-        return toReturn;
-    }
-
-        private void EncodeValue(object value, StringBuilder builder)
+        private void EncodeValue(object value, MemoryStream stream)
         {
             switch (value)
             {
                 case string stringValue:
-                    EncodeString(stringValue, builder);
+                    EncodeString(stringValue, stream);
                     break;
                 case int or long or ulong or ushort or double or float or uint:
-                    EncodeInteger(Convert.ToInt64(value), builder);
+                    EncodeInteger(Convert.ToInt64(value), stream);
                     break;
                 case Dictionary<string, object> dictionaryValue:
-                    EncodeDictionary(dictionaryValue, builder);
+                    EncodeDictionary(dictionaryValue, stream);
                     break;
                 case List<object> listValue:
-                    EncodeList(listValue, builder);
+                    EncodeList(listValue, stream);
                     break;
                 case byte[] bytesValue:
-                    EncodeByteArray(bytesValue, builder);
+                    EncodeByteArray(bytesValue, stream);
                     break;
                 default:
                     throw new ArgumentException($"Unsupported type {value?.GetType().Name ?? "null"} for Bencode encoding");
             }
         }
 
-        private void EncodeInteger(dynamic num, StringBuilder builder)
+        private void EncodeInteger(long num, MemoryStream stream)
         {
-            builder.Append('i');
-            builder.Append(num.ToString());
-            builder.Append('e');
+            var bytes = Encoding.ASCII.GetBytes($"i{num}e");
+            stream.Write(bytes, 0, bytes.Length);
         }
 
-        private void EncodeString(string value, StringBuilder builder)
+        private void EncodeString(string value, MemoryStream stream)
         {
-            builder.Append(value.Length);
-            builder.Append(':');
-            builder.Append(value);
+            byte[] stringBytes = Encoding.UTF8.GetBytes(value);
+            byte[] lengthPrefix = Encoding.ASCII.GetBytes($"{stringBytes.Length}:");
+            stream.Write(lengthPrefix, 0, lengthPrefix.Length);
+            stream.Write(stringBytes, 0, stringBytes.Length);
         }
 
-        private void EncodeByteArray(byte[] value, StringBuilder builder)
+        private void EncodeByteArray(byte[] value, MemoryStream stream)
         {
-            builder.Append(value.Length);
-            builder.Append(':');
-            builder.Append(Encoding.ASCII.GetString(value));
+            byte[] lengthPrefix = Encoding.ASCII.GetBytes($"{value.Length}:");
+            stream.Write(lengthPrefix, 0, lengthPrefix.Length);
+            stream.Write(value, 0, value.Length);
         }
 
-        private void EncodeDictionary(Dictionary<string, object> dict, StringBuilder builder)
+        private void EncodeDictionary(Dictionary<string, object> dict, MemoryStream stream)
         {
-            builder.Append('d');
-
+            stream.WriteByte((byte)'d');
+            
             // Sort dictionary keys lexicographically as required by BEP
             var keys = new List<string>(dict.Keys);
             keys.Sort(StringComparer.Ordinal);
-
+            
             foreach (var key in keys)
             {
-                EncodeString(key, builder);
-                EncodeValue(dict[key], builder);
+                EncodeString(key, stream);
+                EncodeValue(dict[key], stream);
             }
-
-            builder.Append('e');
+            
+            stream.WriteByte((byte)'e');
         }
 
-        private void EncodeList(List<object> list, StringBuilder builder)
+        private void EncodeList(List<object> list, MemoryStream stream)
         {
-            builder.Append('l');
-
+            stream.WriteByte((byte)'l');
+            
             foreach (var item in list)
             {
-                EncodeValue(item, builder);
+                EncodeValue(item, stream);
             }
-
-            builder.Append('e');
+            
+            stream.WriteByte((byte)'e');
         }
     }
 }

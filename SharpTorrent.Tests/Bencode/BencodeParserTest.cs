@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Numerics;
 using System.Text;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -49,7 +48,7 @@ public class BencodeParserTest
             { "info", new Dictionary<string, object>
                 {
                     { "piece length", (long)512},
-                    { "pieces", "abcdef123456" }
+                    { "pieces", Encoding.UTF8.GetBytes("abcdef123456") }
                 }
             }
         };

@@ -49,11 +49,31 @@ public class BencodeParser
       while (_index < bencode.Length && bencode[_index] != 'e')
       {
         var key = HandleString(bencode);
-        
         if (_index >= bencode.Length)
             throw new FormatException("Invalid bencode: unexpected end in dictionary");
-        
-        var value = ParseValue(bencode);
+        object value;
+        switch (key)
+        {
+           // pieces field or peers field in compact form contains string that cannot be parsed like a normal string as it would produce unpredictable result once converted again in bytes
+           case "pieces":
+              value = HandleNonUtf8String(bencode);
+              break;
+            case "peers":
+                var startingIndex = _index;
+                var peersValue = ParseValue(bencode);
+
+                // BEP 23
+                if (peersValue is string)
+                {
+                    _index = startingIndex;
+                    value = HandleNonUtf8String(bencode);
+                }
+                else value = peersValue;
+                break;
+           default:
+              value = ParseValue(bencode);
+              break;
+        }
         result.Add(key, value);
       }
 
@@ -63,7 +83,7 @@ public class BencodeParser
       return result;
    }
    
-   
+
    private List<object> HandleList(byte[] bencode)
    {
       // skip l
@@ -150,4 +170,38 @@ public class BencodeParser
 
       return num;
    }
+   
+   private byte[] HandleNonUtf8String(byte[] bencode)
+   {
+      var start = _index;
+      var end = _index;
+      var c = (char) (bencode[end]);
+      
+      while (char.IsDigit(c))
+      {
+         _index++;
+         end++;
+         c = (char)bencode[end];
+      }
+      
+      // if start == _index then it means a lenght has not been extracted because there were no numeric chars
+      if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
+
+      var length= int.Parse(new ReadOnlySpan<byte>(bencode, start: start, length: end - start));
+      if (length == 0) return [];
+      
+      if (_index + length >= bencode.Length)
+         throw new FormatException($"Invalid bencode: current index: {_index}" +
+                                   $"+ string length {length} exceed bencode length");
+
+      if (bencode[_index] != ':') throw new FormatException("Invalid bencode: string miss : at index " + _index);
+      // skip :
+      _index++;
+
+      var content = new ReadOnlySpan<byte>(bencode, _index, length);
+      _index += length;
+      
+      return content.ToArray();
+   }
+
 }

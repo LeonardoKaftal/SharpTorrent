@@ -1,4 +1,3 @@
-using System;
 using System.Text;
 using FluentAssertions;
 using JetBrains.Annotations;
@@ -26,8 +25,8 @@ public class TrackerRequestTest
 
         const string bencode = "d8:announce41:http://bttracker.debian.org:6969/announce4:infod6:lengthi351272960e4:name31:debian-10.2.0-amd64-netinst.iso12:piece lengthi262144e6:pieces40:1234567890abcdefghijabcdefghij1234567890ee";
         var torrentData = new TorrentMetadata(Encoding.UTF8.GetBytes(bencode));
-        expected.PeerId = torrentData.TrackerRequest.PeerId;
-        expected.Left = torrentData.TrackerRequest.Left;
-        expected.Should().BeEquivalentTo(torrentData.TrackerRequest);
+        expected.PeerId = torrentData.TorrentTrackerRequestToSend.PeerId;
+        expected.Left = torrentData.TorrentTrackerRequestToSend.Left;
+        expected.Should().BeEquivalentTo(torrentData.TorrentTrackerRequestToSend);
     }
 }

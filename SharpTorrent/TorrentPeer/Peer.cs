@@ -2,9 +2,9 @@ using System.Net;
 
 namespace SharpTorrent.TorrentPeer;
 
-public class Peer(string peerId, IPAddress ip, uint port)
+public class Peer(string? peerId, IPAddress ip, ushort port)
 {
-    public readonly string PeerId = peerId;
+    public readonly string? PeerId = peerId;
     public readonly IPAddress Ip = ip;
-    public readonly uint Port = port;
+    public readonly ushort Port = port;
 }
