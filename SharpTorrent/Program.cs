@@ -1,6 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
-using SharpTorrent;
 using SharpTorrent.Torrent;
+using SharpTorrent.Utils;
 
 if (args.Length < 1)
 {
@@ -12,20 +12,14 @@ foreach (var line in File.ReadLines("Banner.txt"))
     Console.WriteLine(line);
 }
 
-try
-{
-    var torrent = new TorrentMetadata(args[0]);
-    var maxConns = int.MaxValue;
-    
-    if (args.Length > 1)
-    {
-        if (int.TryParse(args[1], out var num)) maxConns = num;
-        else Singleton.Logger.LogError("ERROR: impossible to parse maxConns parameter, USING ALL OF SEEDERS AVAILABLE");
-    }
+var torrent = new TorrentMetadata(args[0]);
+// default value
+var maxConns = int.MaxValue;
 
-    var peers = await torrent.GetPeersFromTrackers(maxConns);
-}
-catch (Exception e)
+if (args.Length > 1)
 {
-    Singleton.Logger.LogCritical("CRITICAL ERROR: {}", e);
+    if (int.TryParse(args[1], out var num)) maxConns = num;
+    else Singleton.Logger.LogError("ERROR: impossible to parse maxConns parameter, USING DEFAULT VALUE");
 }
+
+await torrent.Download(maxConns);

@@ -1,7 +1,8 @@
+using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 
-namespace SharpTorrent;
+namespace SharpTorrent.Utils;
 
 public static class Singleton
 {
@@ -11,12 +12,20 @@ public static class Singleton
         Microsoft.Extensions.Logging.LoggerFactory.Create(builder =>
             builder.AddSimpleConsole(options =>
             {
-                options.SingleLine = true; // Log su una riga
-                options.TimestampFormat = "HH:mm:ss "; // Formato timestamp
-                options.UseUtcTimestamp = false; // Usa il fuso orario locale
-                options.ColorBehavior = LoggerColorBehavior.Enabled; // Abilita colori
+                options.SingleLine = true; 
+                options.TimestampFormat = "HH:mm:ss "; 
+                options.UseUtcTimestamp = false; 
+                options.ColorBehavior = LoggerColorBehavior.Enabled;
             })
         ));
 
     public static ILogger Logger => LoggerFactory.Value.CreateLogger("SharpTorrent");
+    
+    static Singleton()
+    {
+        HttpClient = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
+    }
 }

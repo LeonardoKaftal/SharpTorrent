@@ -1,9 +1,10 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
+using SharpTorrent.Utils;
 
-namespace SharpTorrent.Tracker;
+namespace SharpTorrent.Tracker.Http;
 
-public class TrackerRequest(
+public class HttpTrackerRequest(
     byte[] infoHash,
     string peerId,
     ushort port,
@@ -12,11 +13,12 @@ public class TrackerRequest(
     ulong left,
     ushort @event)
 {
-    public string PeerId = peerId;
-    public ulong Left = left;
+    private readonly string PeerId = peerId;
+    private readonly ulong Left = left;
     private readonly uint _event = @event;
     // BEP 23
     private const uint Compact = 1;
+    
 
     private Uri BuildAnnounce(string announceUrl)
     {
@@ -38,7 +40,7 @@ public class TrackerRequest(
     }
     
     // percentage encoding
-    private string BytesToPercentageEncoding(byte[] bytes)
+    private static string BytesToPercentageEncoding(byte[] bytes)
     {
         var sb = new StringBuilder();
         foreach (var b in bytes)
@@ -49,25 +51,27 @@ public class TrackerRequest(
         return sb.ToString();
     }
 
-    public async Task<TrackerResponse> SendRequestAsync(string announce)
+    public async Task<HttpTrackerResponse> SendRequestAsync(string announce)
     {
         var uri = BuildAnnounce(announce);
         Singleton.Logger.LogInformation("Sending request to tracker: {Uri}", uri);
-
-        
+        HttpResponseMessage response;
         try
         {
-            var response = await Singleton.HttpClient.GetAsync(uri);
+            response = await Singleton.HttpClient.GetAsync(uri);
             response.EnsureSuccessStatusCode();
-            
-            var bencodeBytes = await response.Content.ReadAsByteArrayAsync();
-            return new TrackerResponse(bencodeBytes);
         }
-        catch (Exception ex)
+        catch (HttpRequestException ex)
         {
-            var error = $"Error while trying to connect to tracker: {announce} because: {ex.Message}";
-            Singleton.Logger.LogError("Error while trying to connect to tracker {Announce} because: {Ex}", announce, ex.Message);
-            return new TrackerResponse(0, [], error);
+            return new HttpTrackerResponse(0, [], $"Tracker {announce} thrown an http exception: " + ex.Message,
+                announce);
         }
+        catch (TaskCanceledException ex)
+        {
+            return new HttpTrackerResponse(0, [], $"Tracker {announce} did not responded in time: " + ex.Message, announce);
+        }
+        
+        var bencodeBytes = await response.Content.ReadAsByteArrayAsync();
+        return new HttpTrackerResponse(bencodeBytes, announce);
     }
 }

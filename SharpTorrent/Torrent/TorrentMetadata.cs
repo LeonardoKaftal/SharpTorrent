@@ -1,8 +1,13 @@
+using System.Collections.Concurrent;
+using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.Bencode;
-using SharpTorrent.TorrentPeer;
+using SharpTorrent.P2P;
 using SharpTorrent.Tracker;
+using SharpTorrent.Tracker.Http;
+using SharpTorrent.Tracker.Udp;
+using SharpTorrent.Utils;
 
 namespace SharpTorrent.Torrent;
 
@@ -11,8 +16,9 @@ public class TorrentMetadata
     public readonly string Announce;
     public readonly TorrentInfo Info;
     public readonly List<string> AnnounceList = [];
-    public readonly TrackerRequest TorrentTrackerRequestToSend;
-
+    public readonly byte[] InfoHash;
+    public readonly string PeerId;
+    
     public TorrentMetadata(byte[] bencode)
     {
         var parsedBencode = ParseBencode(bencode);
@@ -36,62 +42,42 @@ public class TorrentMetadata
                 }
             }
         }
-        TorrentTrackerRequestToSend = BuildTrackerRequest();
+
+        InfoHash = BuildInfoHash();
+        PeerId = GeneratePeerId();
     }
 
     public TorrentMetadata(string pathToTorrent) : this(File.ReadAllBytes(pathToTorrent)) {}
-    
-    public async Task<HashSet<Peer>> GetPeersFromTrackers(int maxConns)
+
+    public async Task Download(int maxConns)
     {
-        Singleton.Logger.LogInformation("TRYING TO GET PEERS");
-        if (maxConns == int.MaxValue) Singleton.Logger.LogWarning("DUE THE FACT THAT MAX CONNS HAS NOT BEEN SET CLIENT WILL TAKE ALL OF THE AVAILABLE PEERS," +
-                                                          " THE DOWNLOAD WILL BE MUCH FASTER BUT THIS WILL CAUSE MUCH MORE SYSTEM RESOURCES TO BE USED BY THE CLIENT.");
-        var peersSet = new HashSet<Peer>();
-        var result = await GetResponseWithPeersFromTracker(Announce);
-        if (result.FailureReason != null) Singleton.Logger.LogError(result.FailureReason);
-        else peersSet.UnionWith(result.Peers);
-
-        if (AnnounceList.Count > 0)
-        {
-            var tasks = AnnounceList.Select(GetResponseWithPeersFromTracker).ToList();
-            var responses = await Task.WhenAll(tasks);
-            foreach (var response in responses)
-            {
-                if (response.FailureReason != null) Singleton.Logger.LogError(response.FailureReason);
-                else peersSet.UnionWith(response.Peers);
-            }
-        }
-
-        if (peersSet.Count == 0) Singleton.Logger.LogCritical("ERROR, NO PEER HAS BEEN FOUND FOR DOWNLOADING THE TORRENT, TRYING AGAIN LATER");
-        return maxConns == int.MaxValue ? peersSet : peersSet.Take(maxConns).ToHashSet();
+        var peers = await GetPeers(maxConns);
+        Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
+        if (peers.IsEmpty) return;
     }
-  
+
     private Dictionary<string,object> ParseBencode(byte[] bencode)
     {
         BencodeParser bencodeParser = new();
         return (Dictionary<string, object>) bencodeParser.ParseBencode(bencode);
     }
-    
-    private TrackerRequest BuildTrackerRequest()
-    {
-        const ushort port = 6881;
-        ulong left = 0;
-        if (Info.Length == null)
-        {
-            left = Info.Files!.Aggregate(left, (current, file) => current + file.Length);
-        }
-        else left = (ulong) Info.Length;
-        return new TrackerRequest(
-            BuildInfoHash(), GeneratePeerId(), port, 0, 0, left, 0
-        );
-    }
 
+    private async Task<ConcurrentDictionary<IPEndPoint, Peer>> GetPeers(int maxConns)
+    {
+        AnnounceList.Insert(0, Announce);
+        var left = Info.Length ?? Info.Files!.Select(file => file.Length).Aggregate(0UL, (acc, val) => acc + val);
+        const int port = 6881;
+        var udpRequest = new UdpTrackerConnectionRequest(InfoHash, PeerId, left, maxConns);
+        var httpRequest = new HttpTrackerRequest(InfoHash, PeerId, port, 0, 0, left, 0);
+        var trackerManager = new TrackerManager(httpRequest, udpRequest);
+        return await trackerManager.AggregatePeersFromTrackers(maxConns, AnnounceList);
+    }
+    
     private byte[] BuildInfoHash()
     {
         BencodeEncoder bencodeEncoder = new();
         var bencodeBytes = bencodeEncoder.EncodeToBencode(Info.InfoDict);
-        var result = SHA1.HashData(bencodeBytes);
-        return result;
+        return SHA1.HashData(bencodeBytes);
     }
     
     private string GeneratePeerId()
@@ -103,25 +89,5 @@ public class TorrentMetadata
             .Repeat(chars, 20)
             .Select(s => s[random.Next(s.Length)])
             .ToArray());
-    }
-    
-    private async Task<TrackerResponse> GetResponseWithPeersFromTracker(string announce)
-    { 
-        Singleton.Logger.LogInformation("Trying to get peers from tracker {Announce}", announce);
-
-        try
-        {
-            return await TorrentTrackerRequestToSend.SendRequestAsync(announce);
-        }
-        catch (FormatException ex)
-        {
-            var error = $"Closing connection with tracker {announce} because of ERROR: {ex.Message}";
-            return new TrackerResponse(0, [], error);
-        }
-        catch (Exception ex)
-        {
-            var error = $"Closing connection with tracker {announce} because of CRITICAL ERROR: unexpected error while trying to connect to the tracker: {ex.Message}";
-            return new TrackerResponse(0, [], error);
-        }
     }
 }
