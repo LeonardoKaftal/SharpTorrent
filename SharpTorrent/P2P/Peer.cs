@@ -41,7 +41,7 @@ public readonly record struct Peer(string? PeerId, IPAddress Ip, ushort Port)
         const int peerSize = 6;
 
         if (peers.Length % peerSize != 0)
-            throw new FormatException("Invalid tracker: peers length was not correct");
+            throw new FormatException("Invalid tracker: peers length was not correct for IPV4");
 
         var peersNums = peers.Length / peerSize;
 
@@ -49,9 +49,31 @@ public readonly record struct Peer(string? PeerId, IPAddress Ip, ushort Port)
         {
             var startingOffset = i * peerSize;
             var ip = new IPAddress(peers[startingOffset..(startingOffset + 4)]);
+            // + 4 and + 5 is the offset for the two bytes the port
             var port = (ushort)((peers[startingOffset + 4] << 8) | peers[startingOffset + 5]);
             peerDict[new IPEndPoint(ip, port)] = new Peer(null, ip, port);
         }
+        return peerDict;
+    }
+
+    public static ConcurrentDictionary<IPEndPoint, Peer> GetPeers6FromCompactResponse(byte[] peers)
+    {
+        ConcurrentDictionary<IPEndPoint, Peer> peerDict = [];
+        const int peerSize = 18;
+
+        if (peers.Length % peerSize != 0) throw new FormatException("Invalid tracker: peers length was not correct for IPV6");
+
+        var peerNums = peers.Length / 18;
+
+        for (var i = 0; i < peerNums; i++)
+        {
+            var startingOffset = i * peerSize;
+            var ip = new IPAddress(peers[startingOffset..(startingOffset + 16)]);
+            // + 16 and + 17 is the offset for the two bytes the port
+            var port = (ushort) ((peers[startingOffset + 16] << 8) | peers[startingOffset + 17]);
+            peerDict[new IPEndPoint(ip, port)] = new Peer(null, ip, port);
+        }
+
         return peerDict;
     }
 

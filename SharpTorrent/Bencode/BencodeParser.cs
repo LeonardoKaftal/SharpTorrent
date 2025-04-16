@@ -55,7 +55,7 @@ public class BencodeParser
         switch (key)
         {
            // pieces field or peers field in compact form contains string that cannot be parsed like a normal string as it would produce unpredictable result once converted again in bytes
-           case "pieces":
+           case "pieces" or "peers6":
               value = HandleNonUtf8String(bencode);
               break;
             case "peers":

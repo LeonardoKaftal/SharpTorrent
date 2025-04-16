@@ -8,7 +8,7 @@ using static SharpTorrent.Utils.Utils;
 namespace SharpTorrent.Tracker.Udp;
 
 public class UdpTrackerAnnounceRequest(
-    int transactionId,
+    uint transactionId,
     long connectionId,
     byte[] infoHash,
     string peerId,
@@ -46,24 +46,24 @@ public class UdpTrackerAnnounceRequest(
         return buffer;
     }
 
-    public async Task<UdpTrackerAnnounceResponse> SendAsync(UdpClient udpClient, IPEndPoint endPoint)
+    public async Task<UdpTrackerAnnounceResponse> SendAsync(UdpClient udpClient, IPEndPoint endPoint, string announce)
     {
         var bytes = FormAnnounceRequest();
         await udpClient.SendAsync(bytes, endPoint);
         UdpReceiveResult? response;
         try
         {
-            response = await UdpReceiveAsyncWithTimer(udpClient, 5) ?? await UdpReceiveAsyncWithTimer(udpClient, 10);
+            response = await UdpReceiveAsyncWithTimer(udpClient, 5) ?? await UdpReceiveAsyncWithTimer(udpClient, 5);
         }
         catch (Exception ex)
         {
-            return new UdpTrackerAnnounceResponse(0, 0, [],
-                "There has been an error trying to receive announce request: " + ex.Message);
+            return new UdpTrackerAnnounceResponse(
+                $"There has been an error trying to receive announce request from {announce}: {ex.Message}");
         }
         
-        Singleton.Logger.LogInformation("VALID UDP TRACKER RESPONDED, trying to parse the peers packet"); 
+        Singleton.Logger.LogInformation("UDP TRACKER {Announce}, trying to parse the peers packet", announce); 
         return response == null
-            ? new UdpTrackerAnnounceResponse(0, 0, [], "Tracker did not respond in time to UDP announce request") 
-            : new UdpTrackerAnnounceResponse(transactionId, response?.Buffer!);
+            ? new UdpTrackerAnnounceResponse($"Tracker {announce} did not respond in time to UDP announce request") 
+            : new UdpTrackerAnnounceResponse(transactionId, response?.Buffer!, endPoint.AddressFamily);
     }
 }

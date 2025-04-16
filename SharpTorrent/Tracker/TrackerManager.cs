@@ -62,7 +62,7 @@ public class TrackerManager(HttpTrackerRequest httpTrackerRequest, UdpTrackerCon
             {
                 Singleton.Logger.LogInformation("Trying to get peers from HTTP tracker {Announce}", announce);
                 var httpTrackerResponse = await httpTrackerRequest.SendRequestAsync(announce);
-                return new TrackerResponse(httpTrackerResponse.Interval, httpTrackerResponse.Peers, httpTrackerResponse.FailureReason, announce);
+                return new TrackerResponse(httpTrackerResponse.Interval, httpTrackerResponse.Peers, httpTrackerResponse.FailureReason, announce); 
             }
             case "udp":
             {

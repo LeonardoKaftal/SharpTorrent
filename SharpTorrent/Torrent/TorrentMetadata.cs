@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.Bencode;
@@ -15,9 +16,9 @@ public class TorrentMetadata
 {
     public readonly string Announce;
     public readonly TorrentInfo Info;
-    public readonly List<string> AnnounceList = [];
-    public readonly byte[] InfoHash;
-    public readonly string PeerId;
+    private readonly List<string> _announceList = [];
+    private readonly byte[] _infoHash;
+    private readonly string _peerId;
     
     public TorrentMetadata(byte[] bencode)
     {
@@ -38,13 +39,13 @@ public class TorrentMetadata
                 // CHECK IF IS NOT A PRIVATE TRACKER
                 foreach (var ann in innerList.Cast<string>().Where(ann => !ann.Contains("?passkey=")))
                 {
-                    AnnounceList.Add(ann);
+                    _announceList.Add(ann);
                 }
             }
         }
 
-        InfoHash = BuildInfoHash();
-        PeerId = GeneratePeerId();
+        _infoHash = BuildInfoHash();
+        _peerId = GeneratePeerId();
     }
 
     public TorrentMetadata(string pathToTorrent) : this(File.ReadAllBytes(pathToTorrent)) {}
@@ -54,6 +55,7 @@ public class TorrentMetadata
         var peers = await GetPeers(maxConns);
         Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
         if (peers.IsEmpty) return;
+        // TODO
     }
 
     private Dictionary<string,object> ParseBencode(byte[] bencode)
@@ -64,13 +66,15 @@ public class TorrentMetadata
 
     private async Task<ConcurrentDictionary<IPEndPoint, Peer>> GetPeers(int maxConns)
     {
-        AnnounceList.Insert(0, Announce);
+        _announceList.Insert(0, Announce);
         var left = Info.Length ?? Info.Files!.Select(file => file.Length).Aggregate(0UL, (acc, val) => acc + val);
         const int port = 6881;
-        var udpRequest = new UdpTrackerConnectionRequest(InfoHash, PeerId, left, maxConns);
-        var httpRequest = new HttpTrackerRequest(InfoHash, PeerId, port, 0, 0, left, 0);
+        
+        var key = (uint) RandomNumberGenerator.GetInt32(1,int.MaxValue);
+        var udpRequest = new UdpTrackerConnectionRequest(_infoHash, _peerId, left, maxConns, key);
+        var httpRequest = new HttpTrackerRequest(_infoHash, _peerId, port, 0, 0, left, 0);
         var trackerManager = new TrackerManager(httpRequest, udpRequest);
-        return await trackerManager.AggregatePeersFromTrackers(maxConns, AnnounceList);
+        return await trackerManager.AggregatePeersFromTrackers(maxConns, _announceList);
     }
     
     private byte[] BuildInfoHash()

@@ -63,12 +63,11 @@ public class HttpTrackerRequest(
         }
         catch (HttpRequestException ex)
         {
-            return new HttpTrackerResponse(0, [], $"Tracker {announce} thrown an http exception: " + ex.Message,
-                announce);
+            return new HttpTrackerResponse($"Tracker {announce} thrown an http exception: " + ex.Message);
         }
         catch (TaskCanceledException ex)
         {
-            return new HttpTrackerResponse(0, [], $"Tracker {announce} did not responded in time: " + ex.Message, announce);
+            return new HttpTrackerResponse($"Tracker {announce} did not responded in time: " + ex.Message);
         }
         
         var bencodeBytes = await response.Content.ReadAsByteArrayAsync();

@@ -54,14 +54,27 @@ public static class Utils
         return BitConverter.ToInt64(copy);
     }
 
-    public static ConcurrentDictionary<IPEndPoint, Peer> MergePeersDictionary(ConcurrentDictionary<IPEndPoint, Peer> first, ConcurrentDictionary<IPEndPoint, Peer> second, int maxConns)
+    
+    public static ConcurrentDictionary<IPEndPoint, Peer> MergePeersDictionary(
+        ConcurrentDictionary<IPEndPoint, Peer> first,
+        ConcurrentDictionary<IPEndPoint, Peer> second,
+        int maxConns)
     {
         foreach (var peer in second)
         {
             if (first.Count >= maxConns) return first;
-            if (!first.ContainsKey(peer.Key)) first[peer.Key] = peer.Value;
-        }
 
+            var actualKey = peer.Key;
+
+            if (peer.Key is { AddressFamily: AddressFamily.InterNetworkV6, Address.IsIPv4MappedToIPv6: true })
+            {
+                var ipv4 = peer.Key.Address.MapToIPv4();
+                actualKey = new IPEndPoint(ipv4, peer.Key.Port);
+            }
+
+            if (!first.ContainsKey(actualKey))
+                first[actualKey] = peer.Value;
+        }
         return first;
     }
 }

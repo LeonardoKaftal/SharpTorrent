@@ -2,13 +2,14 @@ using System.Collections.Concurrent;
 using System.Net;
 using SharpTorrent.Bencode;
 using SharpTorrent.P2P;
+using static SharpTorrent.Utils.Utils;
 
 namespace SharpTorrent.Tracker.Http;
 
 public class HttpTrackerResponse
 {
     public readonly ulong Interval;
-    public readonly ConcurrentDictionary<IPEndPoint, Peer> Peers;
+    public ConcurrentDictionary<IPEndPoint, Peer> Peers { get; private set; }
     public readonly string? FailureReason;
     public readonly string Announce;
     
@@ -33,9 +34,7 @@ public class HttpTrackerResponse
                 return;
             }
             Interval = (ulong)(long) responseDict["interval"];
-            var peerList = responseDict["peers"];
-            if (peerList is byte[] bytes) Peers = Peer.GetPeersFromCompactResponse(bytes);
-            else Peers = Peer.GetPeersFromNotCompactResponse((List<object>)peerList);
+            GetPeersFromHttpTracker(responseDict); 
         }
         catch (KeyNotFoundException ex)
         {
@@ -53,12 +52,28 @@ public class HttpTrackerResponse
         }
     }
 
-    public HttpTrackerResponse(ulong interval, ConcurrentDictionary<IPEndPoint, Peer> peers, string? failureReason, string announce)
+    public HttpTrackerResponse(ulong interval, ConcurrentDictionary<IPEndPoint, Peer> peers,  string announce)
     {
         Interval = interval;
         Peers = peers;
-        FailureReason = failureReason;
         Announce = announce;
     }
 
+    public HttpTrackerResponse(string failureReason)
+    {
+        FailureReason = failureReason;
+        Peers = [];
+        Announce = string.Empty;
+    }
+
+    private void GetPeersFromHttpTracker(Dictionary<string, object> responseDict)
+    {
+        var peerList = responseDict["peers"];
+        if (peerList is byte[] bytes) Peers = Peer.GetPeersFromCompactResponse(bytes);
+        else Peers = Peer.GetPeersFromNotCompactResponse((List<object>)peerList);
+        if (!responseDict.TryGetValue("peers6", out var peers6)) return;
+        // BEP 23 with Ipv6
+        var result = Peer.GetPeers6FromCompactResponse((byte[])peers6);
+        Peers = MergePeersDictionary(Peers, result, int.MaxValue);
+    }
 }
