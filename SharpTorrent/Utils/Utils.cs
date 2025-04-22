@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -33,27 +34,6 @@ public static class Utils
         Array.Reverse(result);
         return result;
     }
-    
-    public static int BigEndianToInt32(byte[] bigEndianBytes)
-    {
-        if (!BitConverter.IsLittleEndian) return BitConverter.ToInt32(bigEndianBytes);
-        var copy = new byte[bigEndianBytes.Length];
-        // Convert back to little endian
-        Array.Copy(bigEndianBytes, copy, copy.Length);
-        Array.Reverse(copy);
-        return BitConverter.ToInt32(copy);
-    }
-
-    public static long BigEndianToInt64(byte[] bigEndianBytes)
-    {
-        if (!BitConverter.IsLittleEndian) return BitConverter.ToInt64(bigEndianBytes);
-        var copy = new byte[bigEndianBytes.Length];
-        // Convert back to little endian
-        Array.Copy(bigEndianBytes, copy, copy.Length);
-        Array.Reverse(copy);
-        return BitConverter.ToInt64(copy);
-    }
-
     
     public static ConcurrentDictionary<IPEndPoint, Peer> MergePeersDictionary(
         ConcurrentDictionary<IPEndPoint, Peer> first,

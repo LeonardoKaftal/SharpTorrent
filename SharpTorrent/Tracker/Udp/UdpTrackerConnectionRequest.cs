@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -29,7 +30,7 @@ public class UdpTrackerConnectionRequest(byte[] infoHash, string peerId, ulong l
                 
                 // send connection request
                 await udpClient.SendAsync(connectionRequest, endPoint);
-                var receivedResponse = await UdpReceiveAsyncWithTimer(udpClient, 5) ?? await UdpReceiveAsyncWithTimer(udpClient, 10);
+                var receivedResponse = await UdpReceiveAsyncWithTimer(udpClient, 5);
                 
                 if (receivedResponse == null) return new UdpTrackerAnnounceResponse($"Tracker {announce} did not respond in time to UDP connection request");
                 
@@ -65,11 +66,11 @@ public class UdpTrackerConnectionRequest(byte[] infoHash, string peerId, ulong l
     private bool ConnectionResponseIsValid(byte[] buff, uint transactionId)
     {
         if (buff.Length != 16) return false;
-        var action = BigEndianToInt32(buff[0..4]);
+        var action = BinaryPrimitives.ReadInt32BigEndian(buff[0..4]);
         if (action != 0) return false;
-        var receivedTransactionId = BigEndianToInt32(buff[4..8]);
+        var receivedTransactionId = BinaryPrimitives.ReadInt32BigEndian(buff[4..8]);
         if (receivedTransactionId != transactionId) return false;
-        _connectionId = BigEndianToInt64(buff[8..16]);
+        _connectionId = BinaryPrimitives.ReadInt32BigEndian(buff[8..16]);
         return true;
     }
 

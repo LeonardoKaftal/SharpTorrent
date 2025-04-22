@@ -51,9 +51,10 @@ public class UdpTrackerAnnounceRequest(
         var bytes = FormAnnounceRequest();
         await udpClient.SendAsync(bytes, endPoint);
         UdpReceiveResult? response;
+        
         try
         {
-            response = await UdpReceiveAsyncWithTimer(udpClient, 5) ?? await UdpReceiveAsyncWithTimer(udpClient, 5);
+            response = await UdpReceiveAsyncWithTimer(udpClient, 5);
         }
         catch (Exception ex)
         {

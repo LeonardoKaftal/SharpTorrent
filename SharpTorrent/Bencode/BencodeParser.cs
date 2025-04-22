@@ -5,7 +5,6 @@ namespace SharpTorrent.Bencode;
 
 public class BencodeParser
 {
-
    // global index to traverse the bencode
    private int _index  = 0;
    
@@ -55,10 +54,11 @@ public class BencodeParser
         switch (key)
         {
            // pieces field or peers field in compact form contains string that cannot be parsed like a normal string as it would produce unpredictable result once converted again in bytes
-           case "pieces" or "peers6":
+           //  
+           case "pieces":
               value = HandleNonUtf8String(bencode);
               break;
-            case "peers":
+           case "peers" or "peers6":
                 var startingIndex = _index;
                 var peersValue = ParseValue(bencode);
 
@@ -124,7 +124,12 @@ public class BencodeParser
       if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
 
       var length= int.Parse(new ReadOnlySpan<byte>(bencode, start: start, length: end - start));
-      if (length == 0) return "";
+      if (length == 0)
+      {
+         // skip :
+         _index++;
+         return "";
+      }
       
       if (_index + length >= bencode.Length)
          throw new FormatException($"Invalid bencode: current index: {_index}" +
@@ -188,7 +193,12 @@ public class BencodeParser
       if (start == _index) throw new FormatException($"Invalid bencode: string at index {_index} miss length");
 
       var length= int.Parse(new ReadOnlySpan<byte>(bencode, start: start, length: end - start));
-      if (length == 0) return [];
+      if (length == 0)
+      {
+         // skip :
+         _index++;
+         return [];
+      }
       
       if (_index + length >= bencode.Length)
          throw new FormatException($"Invalid bencode: current index: {_index}" +
@@ -203,5 +213,4 @@ public class BencodeParser
       
       return content.ToArray();
    }
-
 }

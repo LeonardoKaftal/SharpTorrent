@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
 using static SharpTorrent.Utils.Utils;
@@ -79,8 +80,11 @@ public readonly record struct Peer(string? PeerId, IPAddress Ip, ushort Port)
 
     public static byte[] SerializePeer(Peer peer)
     {
+        var portBuff = new byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(portBuff, peer.Port);
+        
         return peer.Ip.GetAddressBytes()
-            .Concat(ReverseIfLittleEndian(BitConverter.GetBytes(peer.Port)))
+            .Concat(portBuff)
             .ToArray();
     }
 }

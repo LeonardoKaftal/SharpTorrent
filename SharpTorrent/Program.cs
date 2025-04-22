@@ -14,7 +14,7 @@ foreach (var line in File.ReadLines("Banner.txt"))
 
 var torrent = new TorrentMetadata(args[0]);
 // default value
-var maxConns = int.MaxValue;
+var maxConns = 500;
 
 if (args.Length > 1)
 {

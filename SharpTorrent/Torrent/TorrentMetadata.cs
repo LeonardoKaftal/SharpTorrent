@@ -56,6 +56,10 @@ public class TorrentMetadata
         Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
         if (peers.IsEmpty) return;
         // TODO
+        var peerManager = new PeerManager(peers, _infoHash, _peerId);
+        await peerManager.Download();
+        
+        Singleton.Logger.LogInformation("After handshake remained {Length} peers", peers.Count);
     }
 
     private Dictionary<string,object> ParseBencode(byte[] bencode)
