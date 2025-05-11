@@ -1,54 +1,67 @@
 using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Sockets;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.P2P.Message;
 using SharpTorrent.Utils;
 
 namespace SharpTorrent.P2P;
 
-public class PeerManager(ConcurrentDictionary<IPEndPoint, Peer> peers, byte[] infoHash, string peerId)
+public class PeerManager(
+    ConcurrentDictionary<IPEndPoint,Peer> peers, 
+    byte[][] pieces,
+    byte[] infoHash,
+    string peerId,
+    ulong torrentLength,
+    uint pieceLength)
 {
-    public async Task<byte[]> Download()
+    private readonly ConcurrentQueue<WorkPiece> _workQueue = new();
+    
+    
+    public async Task Download()
     {
-        List<Task> peersTask = [];
-        peersTask.AddRange(peers.Select(StartPeerTask));
+        for (var i = 0; i < pieces.Length; i++)
+        {
+            var piece = pieces[i];
+            var length = CalculatePieceLength(i);
+            var workPiece = new WorkPiece(i, piece, length);
+            _workQueue.Enqueue(workPiece);
+        }
 
-        await Task.WhenAll(peersTask);
-        return null;
+        var tasks = peers.Select(StartPeerTask).ToList();
+
+        await Task.WhenAll(tasks); 
     }
 
-    private async Task StartPeerTask(KeyValuePair<IPEndPoint, Peer> peer)
+    private async Task StartPeerTask(KeyValuePair<IPEndPoint,Peer> peer)
     {
-        var ip = peer.Value.Ip.ToString();
-        
         try
         {
-            using var tcpClient = new TcpClient();
-            Singleton.Logger.LogInformation("Trying to establish valid TCP connection with peer {Ip}", ip);
-            var timer = new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token;
-             
-            // connect with timer of 3 second
-            await tcpClient.ConnectAsync(peer.Key, timer);
-            if (!tcpClient.Connected) throw new ProtocolViolationException("impossible to establish TCP connection with peer");
+            var peerConn = new PeerConnection(peer,infoHash, peerId);
             
-            // handshake
-            await HandshakePeer(tcpClient.Client, ip);
-            
-            
+            await peerConn.EstablishConnection();
+            Singleton.Logger.LogInformation("Connection established successfully to peer {Ip}", peer.Key.ToString());
+            await peerConn.StartDownloadTask(_workQueue.Count);
         }
         catch (Exception e)
-        {
-            var removed = peers.Remove(peer.Key, out _);
-            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error {Error}", ip, e.Message);
-            if (!removed) Singleton.Logger.LogCritical("CRITICAL ERROR, CLIENT HAS NOT BEEN ABLE TO REMOVE PEER {Ip} THAT SHOULD HAVE BEEN PRESENT", ip );
+        { 
+            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error {Error}", peer.Key.ToString(), e.Message);
+            peer.Value.RemovePeer(peers); 
         }
     }
-
-    private async Task HandshakePeer(Socket socket, string ip)
+    
+    // last piece could be truncated, it's needed to be calculated by hand in that case
+    private uint CalculatePieceLength(int index)
     {
-        Singleton.Logger.LogInformation("Trying to handshake peer {Ip}", ip);
-        await Handshake.HandshakePeer(socket, infoHash, peerId);
-        Singleton.Logger.LogInformation("Received valid handshake from peer {Ip}", ip);
+        var (begin, end) = CalculateBoundForPiece(index);
+        return (uint)(int)(end - begin);
+    }
+
+    private Tuple<ulong, ulong> CalculateBoundForPiece(int index)
+    {
+        var begin = (ulong) index * pieceLength;
+        var end = begin + pieceLength;
+
+        if (end > torrentLength) end = torrentLength;
+        return new Tuple<ulong, ulong>(begin, end);
     }
 }

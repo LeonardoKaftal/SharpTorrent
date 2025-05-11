@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Net;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.Bencode;
@@ -19,19 +18,25 @@ public class TorrentMetadata
     private readonly List<string> _announceList = [];
     private readonly byte[] _infoHash;
     private readonly string _peerId;
+    private readonly ulong _torrentLength;
     
     public TorrentMetadata(byte[] bencode)
     {
-        var parsedBencode = ParseBencode(bencode);
+        var bencodeParser = new BencodeParser();
+        var parsedDict =  bencodeParser.ParseBencode(bencode) as Dictionary<string, object> 
+                         ?? throw new FormatException("Invalid torrent: parsed bencode is not a dict");
+        
         // announce
-        if (parsedBencode.TryGetValue("announce", out var announce) && announce is string value) Announce = value;
+        if (parsedDict.TryGetValue("announce", out var announce) && announce is string value) Announce = value;
         else throw new FormatException("Invalid torrent: announce field is missing or is not of the expected type");
-        // info 
-        if (parsedBencode.TryGetValue("info", out var info) && info is Dictionary<string, object> infoDict)
+        
+        // infoMeta 
+        if (parsedDict.TryGetValue("info", out var info) && info is Dictionary<string, object> infoDict)
             Info = new TorrentInfo(infoDict);
         else throw new FormatException("Invalid torrent: info dictionary is missing or is not of the expected type");
+        
         // announce list
-        if (parsedBencode.TryGetValue("announce-list", out var announceList))
+        if (parsedDict.TryGetValue("announce-list", out var announceList))
         {
             foreach (var innerListObject in (List<object>) announceList)
             {
@@ -46,37 +51,21 @@ public class TorrentMetadata
 
         _infoHash = BuildInfoHash();
         _peerId = GeneratePeerId();
+        
+        _torrentLength = Info.Length ?? Info.Files!.Select(file => file.Length).Aggregate(0UL, (acc, val) => acc + val);
     }
 
     public TorrentMetadata(string pathToTorrent) : this(File.ReadAllBytes(pathToTorrent)) {}
 
-    public async Task Download(int maxConns)
-    {
-        var peers = await GetPeers(maxConns);
-        Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
-        if (peers.IsEmpty) return;
-        // TODO
-        var peerManager = new PeerManager(peers, _infoHash, _peerId);
-        await peerManager.Download();
-        
-        Singleton.Logger.LogInformation("After handshake remained {Length} peers", peers.Count);
-    }
-
-    private Dictionary<string,object> ParseBencode(byte[] bencode)
-    {
-        BencodeParser bencodeParser = new();
-        return (Dictionary<string, object>) bencodeParser.ParseBencode(bencode);
-    }
 
     private async Task<ConcurrentDictionary<IPEndPoint, Peer>> GetPeers(int maxConns)
     {
         _announceList.Insert(0, Announce);
-        var left = Info.Length ?? Info.Files!.Select(file => file.Length).Aggregate(0UL, (acc, val) => acc + val);
         const int port = 6881;
         
         var key = (uint) RandomNumberGenerator.GetInt32(1,int.MaxValue);
-        var udpRequest = new UdpTrackerConnectionRequest(_infoHash, _peerId, left, maxConns, key);
-        var httpRequest = new HttpTrackerRequest(_infoHash, _peerId, port, 0, 0, left, 0);
+        var udpRequest = new UdpTrackerConnectionRequest(_infoHash, _peerId, left: _torrentLength, maxConns, key);
+        var httpRequest = new HttpTrackerRequest(_infoHash, _peerId, port, 0, 0, left: _torrentLength, 0);
         var trackerManager = new TrackerManager(httpRequest, udpRequest);
         return await trackerManager.AggregatePeersFromTrackers(maxConns, _announceList);
     }
@@ -97,5 +86,32 @@ public class TorrentMetadata
             .Repeat(chars, 20)
             .Select(s => s[random.Next(s.Length)])
             .ToArray());
+    }
+
+    private byte[][] SplitPieces()
+    {
+        var length = Info.Pieces.Length / 20;
+        var piecesBuff = new byte[length][];
+        for (var i = 0; i < length; i++)
+        {
+            piecesBuff[i] = Info.Pieces
+                .Take(i..(i + 20))
+                .ToArray();
+        }
+
+        return piecesBuff;
+    }
+    
+    public async Task Download(int maxConns)
+    {
+        var peers = await GetPeers(maxConns);
+        Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
+        if (peers.IsEmpty) return;
+
+        var splitPieces = SplitPieces();
+
+
+        var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength);
+        await peerManager.Download();
     }
 }

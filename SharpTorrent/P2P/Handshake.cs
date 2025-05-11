@@ -1,9 +1,7 @@
 using System.Net.Sockets;
 using System.Text;
-using Microsoft.Extensions.Logging;
-using SharpTorrent.Utils;
 
-namespace SharpTorrent.P2P.Message;
+namespace SharpTorrent.P2P;
 
 public static class Handshake
 {

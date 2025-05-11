@@ -47,20 +47,20 @@ public class UdpTrackerAnnounceResponse
             return;
         }
 
-        var action = BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse[0..4]);
+        var action = BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse.AsSpan()[0..4]);
         if (action != Action)
         {
             FailureReason = $"action field was not set to {Action} but was instead {action}";
         }
-        
-        var transactionId = BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse[4..8]);
+
+        var transactionId = BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse.AsSpan()[4..8]);
         if (TransactionId != transactionId)
         {
             FailureReason = "transaction id is different from the one that has been received";
             return;
         }
-        
-        Interval = (uint) BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse[8..12]);
+
+        Interval = (uint) BinaryPrimitives.ReadInt32BigEndian(rawAnnounceResponse.AsSpan()[8..12]);
         // skipping seeders and leechers
         var peersBytes = rawAnnounceResponse[20..];
         

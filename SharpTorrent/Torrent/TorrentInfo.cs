@@ -5,7 +5,7 @@ namespace SharpTorrent.Torrent;
 public class TorrentInfo
 {
     public readonly Dictionary<string, object> InfoDict;
-    public ulong PieceLength { get; private set; }
+    public uint PieceLength { get; private set; }
     public byte[] Pieces { get; private set; }
     public string? Name { get; private set; }
     public ulong? Length { get; private set; }
@@ -23,7 +23,7 @@ public class TorrentInfo
         try
         {
             Pieces = (byte[])InfoDict["pieces"];
-            PieceLength = (ulong)(long)InfoDict["piece length"];
+            PieceLength = (uint)(int)(long)InfoDict["piece length"];
             if (InfoDict.TryGetValue("name", out var name)) Name = (string)(name);
             if (InfoDict.TryGetValue("private", out var priv))
             {

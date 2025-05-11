@@ -1,6 +1,8 @@
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Net;
+using Microsoft.Extensions.Logging;
+using SharpTorrent.Utils;
 using static SharpTorrent.Utils.Utils;
 
 namespace SharpTorrent.P2P;
@@ -54,6 +56,7 @@ public readonly record struct Peer(string? PeerId, IPAddress Ip, ushort Port)
             var port = (ushort)((peers[startingOffset + 4] << 8) | peers[startingOffset + 5]);
             peerDict[new IPEndPoint(ip, port)] = new Peer(null, ip, port);
         }
+        
         return peerDict;
     }
 
@@ -86,5 +89,12 @@ public readonly record struct Peer(string? PeerId, IPAddress Ip, ushort Port)
         return peer.Ip.GetAddressBytes()
             .Concat(portBuff)
             .ToArray();
+    }
+
+    public void RemovePeer(ConcurrentDictionary<IPEndPoint,Peer> peers)
+    {
+        var endpoint = new IPEndPoint(Ip, Port);
+        if (!peers.TryRemove(endpoint, out var removed))
+            Singleton.Logger.LogCritical("Peer {Ip} that should have been removed has not been found in the list of peers", removed.Ip.ToString());
     }
 }
