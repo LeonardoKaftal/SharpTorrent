@@ -1,3 +1,3 @@
 namespace SharpTorrent.P2P.Message;
 
-public record WorkPiece(int index, byte[] hash, uint length) {}
+public record WorkPiece(int Index, byte[] Hash, uint Length) {}

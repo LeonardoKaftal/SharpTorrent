@@ -3,7 +3,6 @@ using System.Collections.Concurrent;
 using System.Net;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.Utils;
-using static SharpTorrent.Utils.Utils;
 
 namespace SharpTorrent.P2P;
 

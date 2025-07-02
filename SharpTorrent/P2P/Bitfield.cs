@@ -1,6 +1,6 @@
 namespace SharpTorrent.P2P;
 
-public class Bitfield
+public static class Bitfield
 {
     public static bool HasPiece(byte[] bitfield, int bitIndex)
     {
@@ -9,10 +9,10 @@ public class Bitfield
         return (bitfield[byteIndex] >> (7 - offset) & 1) == 1;
     }
 
-    public static void SetPiece(byte[] bitfield, int bitindex)
+    public static void SetPiece(byte[] bitfield, int bitIndex)
     {
-        var byteIndex = bitindex / 8;
-        var offset = bitindex % 8;
+        var byteIndex = bitIndex / 8;
+        var offset = bitIndex % 8;
         bitfield[byteIndex] |= (byte)(1 << (7 - offset));
     }
 }

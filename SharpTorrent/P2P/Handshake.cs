@@ -13,16 +13,28 @@ public static class Handshake
         await peerSocket.SendAsync(sentHandshake);
         
         var receivedHandshake = new byte[68];
-
-        var read = await peerSocket.ReceiveAsync(receivedHandshake, new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
-        if (read < HandshakeLength) throw new FormatException($"Invalid handshake: received from peer {read} bytes instead of {HandshakeLength}");
+        var totalRead = 0;
         
-        // don't count peer id
-        receivedHandshake = receivedHandshake[0..(HandshakeLength - 20)];
-        sentHandshake = sentHandshake[0..(HandshakeLength - 20)];
+        while (totalRead < HandshakeLength)
+        {
+            var segment = new ArraySegment<byte>(receivedHandshake, totalRead, HandshakeLength - totalRead);
+            var read = await peerSocket.ReceiveAsync(segment);
+            if (read == 0) throw new IOException("Connection closed before handshake was complete");
+            totalRead += read;
 
-        if (sentHandshake.Equals(receivedHandshake))
-            throw new FormatException("Invalid handshake: sent handshake is different from the one received");
+        }
+        
+        // check BitTorrent protocol string
+        if (!receivedHandshake.AsSpan(0, 20).SequenceEqual(sentHandshake.AsSpan(0, 20)))
+        {
+            throw new FormatException("Invalid handshake: not bittorrent protocol");
+        }
+        
+       // check infoHash 
+       if (!receivedHandshake.AsSpan(28, 20).SequenceEqual(sentHandshake.AsSpan(28, 20)))
+       {
+            throw new FormatException("Invalid handshake: infohash does not match");
+       }
         
         return receivedHandshake;
     }

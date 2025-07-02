@@ -36,11 +36,8 @@ public class PeerManager(
     {
         try
         {
-            var peerConn = new PeerConnection(peer,infoHash, peerId);
-            
-            await peerConn.EstablishConnection();
-            Singleton.Logger.LogInformation("Connection established successfully to peer {Ip}", peer.Key.ToString());
-            await peerConn.StartDownloadTask(_workQueue.Count);
+            var peerConn = new PeerConnection(peer.Key);
+            await peerConn.EstablishConnection(infoHash, peerId);
         }
         catch (Exception e)
         { 
@@ -48,7 +45,8 @@ public class PeerManager(
             peer.Value.RemovePeer(peers); 
         }
     }
-    
+
+
     // last piece could be truncated, it's needed to be calculated by hand in that case
     private uint CalculatePieceLength(int index)
     {
