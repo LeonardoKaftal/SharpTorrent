@@ -22,8 +22,8 @@ public static class Utils
         return await receivedPacket;
     }
 
-    // For UDP tracker protocol and all the other communications Big Endian is needed,
-    // but BitConverter in some architecture will convert to little endian,
+    // utils method used in unit test for quickly concatenating bytes array using concat()
+    // Big Endian is needed, but BitConverter in some architecture will convert to little endian,
     // if that's the case the bytes need to be reversed  
     public static byte[] ReverseIfLittleEndian(byte[] bytes)
     {

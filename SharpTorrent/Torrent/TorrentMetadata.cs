@@ -90,17 +90,17 @@ public class TorrentMetadata
 
     private byte[][] SplitPieces()
     {
-        var length = Info.Pieces.Length / 20;
-        var piecesBuff = new byte[length][];
-        for (var i = 0; i < length; i++)
+        var pieceCount = Info.Pieces.Length / 20;
+        var piecesBuff = new byte[pieceCount][];
+
+        for (var i = 0; i < pieceCount; i++)
         {
-            piecesBuff[i] = Info.Pieces
-                .Take(i..(i + 20))
-                .ToArray();
+            piecesBuff[i] = Info.Pieces[(i * 20)..((i + 1) * 20)];
         }
 
         return piecesBuff;
     }
+
     
     public async Task Download(int maxConns)
     {
@@ -112,6 +112,6 @@ public class TorrentMetadata
 
 
         var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength);
-        await peerManager.Download();
+        await peerManager.DownloadTorrent();
     }
 }

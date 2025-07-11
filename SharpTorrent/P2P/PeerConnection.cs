@@ -7,12 +7,18 @@ using SharpTorrent.Utils;
 
 namespace SharpTorrent.P2P;
 
-public class PeerConnection(IPEndPoint address)
+public class PeerConnection(IPEndPoint address): IDisposable
 {
     private readonly TcpClient _tcpClient = new();
     public byte[] Bitfield { get; private set; } = [];
+    public bool IsChocked;
 
-    private async Task<TorrentMessage> ReadMessage()
+    public async Task<TorrentMessage> ReadMessageAsync()
+    {
+        return await ReadMessageAsync(_tcpClient);
+    }
+
+    public async Task<TorrentMessage> ReadMessageAsync(TcpClient peerSocket)
     {
         var lengthBuff = new byte[4];
         var received = 0;
@@ -20,7 +26,9 @@ public class PeerConnection(IPEndPoint address)
         while (received < 4)
         {
             var segment = new ArraySegment<byte>(lengthBuff, received, lengthBuff.Length - received); 
-            var bytesRead = await _tcpClient.Client.ReceiveAsync(segment, SocketFlags.None);
+            var bytesRead = await peerSocket
+                .GetStream()
+                .ReadAsync(segment);
             
             if (bytesRead == 0)
                 throw new InvalidOperationException("Connection closed by peer");
@@ -39,10 +47,13 @@ public class PeerConnection(IPEndPoint address)
         while (received < messageLength)
         {
             var segment = new ArraySegment<byte>(messageBuff, received, (int) messageLength - received);
-            var bytesRead = await _tcpClient.Client.ReceiveAsync(segment, SocketFlags.None);
+            var bytesRead = await peerSocket
+                .GetStream()
+                .ReadAsync(segment);
+            
             
             if (bytesRead == 0)
-                throw new InvalidOperationException("Connection closed by peer");
+                throw new ProtocolViolationException("Connection closed by peer");
                 
             received += bytesRead;
         }
@@ -54,10 +65,10 @@ public class PeerConnection(IPEndPoint address)
         return new TorrentMessage(fullMessage);    
     }
 
-    public async Task<TorrentMessage> ReadMessageWithTimer(TimeSpan timeout)
+    public async Task<TorrentMessage> ReadMessageWithTimerAsync(TimeSpan timeout)
     {
         var timerTask = Task.Delay(timeout);
-        var readMessageTask = ReadMessage();
+        var readMessageTask = ReadMessageAsync();
 
         // read message with timer
         var finishedTask = await Task.WhenAny(timerTask, readMessageTask);
@@ -72,32 +83,21 @@ public class PeerConnection(IPEndPoint address)
     {
         Singleton.Logger.LogInformation("Trying to establish valid TCP connection with peer {Ip}", address.ToString());
         
-        try
-        {
-            // tcp connection
-            await _tcpClient.ConnectAsync(address, new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token);
-            
-            // handshake
-            await HandshakePeer(_tcpClient.Client, infoHash, peerId);
-            
-            // bitfield
-            await ReceiveBitfield();
-            
-            Singleton.Logger.LogInformation("Successfully established connection with peer {Ip}", address.ToString());
-        }
-        catch (Exception)
-        {
-            Dispose();
-            throw;
-        }
+        // tcp connection
+        await _tcpClient.ConnectAsync(address, new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token);
+        
+        await HandshakePeer(_tcpClient.Client, infoHash, peerId);
+        await ReceiveBitfield();
+        
+        Singleton.Logger.LogInformation("Successfully established connection with peer {Ip}", address.ToString());
     }
 
     private async Task HandshakePeer(Socket socket, byte[] infoHash, string peerId)
     {
         var timerTask = Task.Delay(TimeSpan.FromSeconds(5));
         Singleton.Logger.LogInformation("Trying to handshake peer {Ip}", address.ToString());
+        
         var handshakeTask = Handshake.HandshakePeer(socket, infoHash, peerId);
-
         var finishedTask = await Task.WhenAny(timerTask, handshakeTask);
         
         if (finishedTask == timerTask) 
@@ -115,7 +115,7 @@ public class PeerConnection(IPEndPoint address)
         TorrentMessage parsedMessage;
         do
         {
-            parsedMessage = await ReadMessageWithTimer(TimeSpan.FromSeconds(6));
+            parsedMessage = await ReadMessageWithTimerAsync(TimeSpan.FromSeconds(6));
         } 
         while (parsedMessage.Type == MessageType.KeepAlive);
         
@@ -125,10 +125,18 @@ public class PeerConnection(IPEndPoint address)
         Singleton.Logger.LogInformation("Successfully received Bitfield from {Ip}", address.ToString());
         Bitfield = parsedMessage.Payload;
     }
+    
+    public async Task SendMessageAsync(byte[] msg)
+    {
+        await _tcpClient
+            .GetStream()
+            .WriteAsync(msg);
+    }
 
     public void Dispose()
     {
         _tcpClient?.Close();
         _tcpClient?.Dispose();
     }
+
 }

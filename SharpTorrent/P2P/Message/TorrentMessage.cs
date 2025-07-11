@@ -29,11 +29,11 @@ public record TorrentMessage
         Payload = msg[5..];
     }
 
-    public TorrentMessage(MessageType type, byte[] payload, uint length)
+    public TorrentMessage(MessageType type, byte[] payload)
     {
         Type = type;
         Payload = payload;
-        Length = length;
+        Length = (uint)(Payload.Length + 1);
     }
     
     public byte[] Serialize()
@@ -60,13 +60,33 @@ public record TorrentMessage
     {
         if (Type != MessageType.Have)
             throw new ProtocolViolationException("Expected Have Message, got instead " + Type.ToString());
+        if (Payload.Length != 4)
+            throw new ProtocolViolationException(
+                "Invalid Have Message, expected payload with 4 bytes but got instead " + Payload.Length);
         return BinaryPrimitives.ReadUInt32BigEndian(Payload);
     }
 
-    public int ParsePiece()
+    public uint ParsePiece(uint index, byte[] buffer, byte[] payload)
     {
-        // todo
-        throw new NotImplementedException();
+        if (Type != MessageType.Piece)
+            throw new ProtocolViolationException("Expected Piece Message, got instead " + Type.ToString());
+        if (payload.Length < 8)
+            throw new ProtocolViolationException(
+                "Invalid piece message, expected payload with at least 8 bytes but got instead " + payload.Length);
+
+        var parsedIndex = BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(0, 4));
+        if (parsedIndex != index)
+            throw new ProtocolViolationException("Invalid Piece Message, parsed index is different from the one expected");
+        var begin = BinaryPrimitives.ReadInt32BigEndian(payload.AsSpan(4, 4));
+        
+        var data = payload[8..];
+        if (begin > buffer.Length || begin + data.Length > buffer.Length)
+            throw new ProtocolViolationException("Invalid Piece Message, begin and data exceed buffer capacity");
+        
+        var n = data.Length;
+        
+        Buffer.BlockCopy(data,0, buffer, begin, n);
+        return (uint)n;
     }
     
     // static formatting methods
@@ -78,7 +98,7 @@ public record TorrentMessage
         BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(4, 4), begin);
         BinaryPrimitives.WriteUInt32BigEndian(payload.AsSpan(8, 4), length);
         
-        return new TorrentMessage(MessageType.Request,payload, 13);
+        return new TorrentMessage(MessageType.Request,payload);
     }
 
     public static TorrentMessage FormatCancel(uint index, uint begin, uint length)
@@ -92,6 +112,7 @@ public record TorrentMessage
     {
         var payload = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(payload, index);
-        return new TorrentMessage(MessageType.Have, payload, 5);
+        return new TorrentMessage(MessageType.Have, payload);
     }
+    
 }

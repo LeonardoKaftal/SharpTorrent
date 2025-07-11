@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using SharpTorrent.P2P.Message;
+using SharpTorrent.P2P.Piece;
 using SharpTorrent.Utils;
 
 namespace SharpTorrent.P2P;
@@ -14,16 +16,35 @@ public class PeerManager(
     ulong torrentLength,
     uint pieceLength)
 {
-    private readonly ConcurrentQueue<WorkPiece> _workQueue = new();
+    private const uint MaxBlockSize = 16384;
+    private const uint MaxBacklog = 5;
+    private readonly ConcurrentQueue<PieceWork> _workQueue = new();
     
     
-    public async Task Download()
+    
+    // last piece could be truncated, it's needed to be calculated by hand in that case
+    private uint CalculatePieceLength(uint index)
     {
-        for (var i = 0; i < pieces.Length; i++)
+        var (begin, end) = CalculateBoundForPiece(index);
+        return (uint)(int)(end - begin);
+    }
+
+    private Tuple<ulong, ulong> CalculateBoundForPiece(uint index)
+    {
+        var begin = (ulong) index * pieceLength;
+        var end = begin + pieceLength;
+
+        if (end > torrentLength) end = torrentLength;
+        return new Tuple<ulong, ulong>(begin, end);
+    }
+    
+    public async Task DownloadTorrent()
+    {
+        for (uint i = 0; i < pieces.Length; i++)
         {
             var piece = pieces[i];
-            var length = CalculatePieceLength(i);
-            var workPiece = new WorkPiece(i, piece, length);
+            var length = CalculatePieceLength((uint)i);
+            var workPiece = new PieceWork(i, piece, length);
             _workQueue.Enqueue(workPiece);
         }
 
@@ -34,32 +55,95 @@ public class PeerManager(
 
     private async Task StartPeerTask(KeyValuePair<IPEndPoint,Peer> peer)
     {
+        using var peerConn = new PeerConnection(peer.Key);
+        var unchockeMessage = new TorrentMessage(MessageType.Unchoke, []).Serialize();
+        var interestedMessage = new TorrentMessage(MessageType.Interested, []).Serialize();
+        PieceWork workPiece = null;
+
         try
         {
-            var peerConn = new PeerConnection(peer.Key);
             await peerConn.EstablishConnection(infoHash, peerId);
+
+            do
+            {
+                if (!_workQueue.TryDequeue(out var result)) continue;
+                workPiece = result;
+                // get a piece that the peer have, then try to download it
+                if (!Bitfield.HasPiece(peerConn.Bitfield, workPiece.Index))
+                {
+                    _workQueue.Enqueue(workPiece);
+                    continue;
+                }
+
+                var haveMessage = TorrentMessage
+                    .FormatHave(workPiece.Index)
+                    .Serialize();
+
+                await peerConn.SendMessageAsync(unchockeMessage);
+                await peerConn.SendMessageAsync(interestedMessage);
+
+                // 30 seconds are enough to download a piece
+                var timer = Task.Delay(TimeSpan.FromSeconds(30));
+                var pieceDownloadTask = AttemptDownloadPiece(workPiece, peerConn);
+
+                var completedTask = await Task.WhenAny(timer, pieceDownloadTask);
+                if (completedTask == timer)
+                    throw new ProtocolViolationException(
+                        $"Impossible to download piece {workPiece.Index} from peer because of timeout");
+
+                var piece = await pieceDownloadTask;
+
+                if (!VerifyHash(piece, workPiece))
+                    throw new ProtocolViolationException("The downloaded piece have invalid hash!");
+
+                var pieceResult = new PieceResult(workPiece.Index, piece);
+                await peerConn.SendMessageAsync(haveMessage);
+
+                Singleton.Logger.LogInformation(
+                    $"Successfully downloaded piece {workPiece.Index} from peer {peer.Key.ToString()}");
+                
+            } while (!_workQueue.IsEmpty);
         }
         catch (Exception e)
-        { 
-            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error {Error}", peer.Key.ToString(), e.Message);
-            peer.Value.RemovePeer(peers); 
+        {
+            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error: {Error}",
+            peer.Key.ToString(), e.Message);
+            _workQueue.Enqueue(workPiece);
+            peer.Value.RemovePeer(peers);
         }
     }
 
-
-    // last piece could be truncated, it's needed to be calculated by hand in that case
-    private uint CalculatePieceLength(int index)
+    private bool VerifyHash(byte[] pieceByte, PieceWork pieceWork)
     {
-        var (begin, end) = CalculateBoundForPiece(index);
-        return (uint)(int)(end - begin);
+        var computedHash = SHA1.HashData(pieceByte);
+        return computedHash.SequenceEqual(pieceWork.Hash);
     }
 
-    private Tuple<ulong, ulong> CalculateBoundForPiece(int index)
+    private async Task<byte[]> AttemptDownloadPiece(PieceWork workPiece, PeerConnection peerConnection)
     {
-        var begin = (ulong) index * pieceLength;
-        var end = begin + pieceLength;
+        var state = new PieceProgress(workPiece.Index, peerConnection, workPiece.Length);
 
-        if (end > torrentLength) end = torrentLength;
-        return new Tuple<ulong, ulong>(begin, end);
+        while (state.Downloaded < workPiece.Length)
+        {
+            while (!state.Connection.IsChocked
+                   && state.Requested < workPiece.Length
+                   && state.Backlog < MaxBacklog)
+            {
+                var blockSize = MaxBlockSize;
+                if (workPiece.Length - state.Requested < MaxBlockSize)
+                    blockSize = (uint)(int)(workPiece.Length - state.Requested);
+
+                var requestMessage = TorrentMessage
+                    .FormatRequest(workPiece.Index, state.Requested, blockSize)
+                    .Serialize();
+
+                await peerConnection.SendMessageAsync(requestMessage);
+                state.Backlog++;
+                state.Requested += blockSize;
+            }
+            await state.ReadState();
+        }
+
+        return state.Buff;
     }
 }

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -19,7 +20,7 @@ public static class Handshake
         {
             var segment = new ArraySegment<byte>(receivedHandshake, totalRead, HandshakeLength - totalRead);
             var read = await peerSocket.ReceiveAsync(segment);
-            if (read == 0) throw new IOException("Connection closed before handshake was complete");
+            if (read == 0) throw new ProtocolViolationException("Connection closed before handshake was complete");
             totalRead += read;
 
         }
