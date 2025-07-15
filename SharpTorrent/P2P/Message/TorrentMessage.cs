@@ -6,42 +6,43 @@ namespace SharpTorrent.P2P.Message;
 public record TorrentMessage
 {
     public MessageType Type { get; private set; }
-    public readonly byte[] Payload;
-    public readonly uint Length;
+    public readonly byte[] Payload = [];
+    private readonly uint _length;
     
     
     public TorrentMessage(byte[] msg)
     {
-        switch (msg.Length) {
-            // keep alive
-            case 0:
-                Type = MessageType.KeepAlive;
-                Payload = [];
-                return;
-            case < 4:
-                throw new FormatException("Peer sent an invalid message, it's length is less than four");
+        if (msg.Length < 4)
+        {
+            throw new FormatException("Peer sent an invalid message, it's length is less than four");
         }
-        
-        Length = BinaryPrimitives.ReadUInt32BigEndian(msg.AsSpan()[0..4]);
-        
+
+        _length = BinaryPrimitives.ReadUInt32BigEndian(msg.AsSpan()[0..4]);
+        if (_length == 0)
+        {
+            Type = MessageType.KeepAlive;
+            return;
+        }
+
+        if (msg.Length < 5) throw new FormatException($"Message claims length {_length} but actual message is too short to contain type byte");
         
         Type = (MessageType) msg[4];
-        Payload = msg[5..];
+        if (msg.Length > 5) Payload = msg[5..];
     }
 
     public TorrentMessage(MessageType type, byte[] payload)
     {
         Type = type;
         Payload = payload;
-        Length = (uint)(Payload.Length + 1);
+        _length = (uint)(Payload.Length + 1);
     }
     
     public byte[] Serialize()
     {
-        var totalLength = 4 + Length;
+        var totalLength = 4 + _length;
         var messageBuff = new byte[totalLength];
         
-        BinaryPrimitives.WriteUInt32BigEndian(messageBuff, Length);
+        BinaryPrimitives.WriteUInt32BigEndian(messageBuff, _length);
         messageBuff[4] = (byte) Type;
 
         if (Payload.Length > 0)

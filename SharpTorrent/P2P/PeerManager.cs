@@ -2,8 +2,10 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using SharpTorrent.Disk;
 using SharpTorrent.P2P.Message;
 using SharpTorrent.P2P.Piece;
+using SharpTorrent.Torrent;
 using SharpTorrent.Utils;
 
 namespace SharpTorrent.P2P;
@@ -14,13 +16,14 @@ public class PeerManager(
     byte[] infoHash,
     string peerId,
     ulong torrentLength,
-    uint pieceLength)
+    uint pieceLength,
+    List<TorrentFile> files)
 {
     private const uint MaxBlockSize = 16384;
     private const uint MaxBacklog = 5;
     private readonly ConcurrentQueue<PieceWork> _workQueue = new();
-    
-    
+    private readonly DiskManager _diskManager = new(files,pieceLength);
+    private int _downloadedPieces = 0;
     
     // last piece could be truncated, it's needed to be calculated by hand in that case
     private uint CalculatePieceLength(uint index)
@@ -43,14 +46,36 @@ public class PeerManager(
         for (uint i = 0; i < pieces.Length; i++)
         {
             var piece = pieces[i];
-            var length = CalculatePieceLength((uint)i);
+            var length = CalculatePieceLength(i);
             var workPiece = new PieceWork(i, piece, length);
             _workQueue.Enqueue(workPiece);
         }
 
         var tasks = peers.Select(StartPeerTask).ToList();
 
-        await Task.WhenAll(tasks); 
+        await Task.WhenAll(tasks);
+        _diskManager.Dispose();
+
+        if (_downloadedPieces == pieces.Length)
+        {
+            Singleton.Logger.LogInformation("Successfully downloaded torrent, 100% download completed");
+            
+            // wait for disk manager to be disposed
+            await Task.Delay(500);
+            
+            // sha256 log
+            using var sha = SHA256.Create();
+            foreach (var file in files)
+            {
+                var stream = new FileStream(file.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var hash = await sha.ComputeHashAsync(stream);
+                var computedHash = BitConverter
+                    .ToString(hash)
+                    .Replace("-", "")
+                    .ToLowerInvariant();
+                Singleton.Logger.LogInformation("SHA256 {Name}: {Hash}", file.FileName, computedHash);
+            }
+        }
     }
 
     private async Task StartPeerTask(KeyValuePair<IPEndPoint,Peer> peer)
@@ -66,7 +91,12 @@ public class PeerManager(
 
             do
             {
-                if (!_workQueue.TryDequeue(out var result)) continue;
+                if (!_workQueue.TryDequeue(out var result))
+                {
+                    await Task.Delay(100);
+                    continue;
+                }
+
                 workPiece = result;
                 // get a piece that the peer have, then try to download it
                 if (!Bitfield.HasPiece(peerConn.Bitfield, workPiece.Index))
@@ -99,16 +129,21 @@ public class PeerManager(
                 var pieceResult = new PieceResult(workPiece.Index, piece);
                 await peerConn.SendMessageAsync(haveMessage);
 
+                // percentage
+                _downloadedPieces = Interlocked.Increment(ref _downloadedPieces);
+                var percentage = (double)_downloadedPieces / pieces.Length * 100;
                 Singleton.Logger.LogInformation(
-                    $"Successfully downloaded piece {workPiece.Index} from peer {peer.Key.ToString()}");
-                
+                    "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers", percentage, peers.Count);
+
+
+                await _diskManager.WritePieceToDisk(pieceResult);
+                workPiece = null;
             } while (!_workQueue.IsEmpty);
         }
         catch (Exception e)
         {
-            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error: {Error}",
-            peer.Key.ToString(), e.Message);
-            _workQueue.Enqueue(workPiece);
+            Singleton.Logger.LogWarning("Closing connection with peer {Ip} because of error: {Error}", peer.Key.ToString(), e.Message);
+            if (workPiece != null) _workQueue.Enqueue(workPiece);
             peer.Value.RemovePeer(peers);
         }
     }

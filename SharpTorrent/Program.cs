@@ -2,24 +2,49 @@
 using SharpTorrent.Torrent;
 using SharpTorrent.Utils;
 
-if (args.Length < 1)
+await Main();
+return;
+
+async Task Main()
 {
-    Singleton.Logger.LogError("USAGE: SharpTorrent [TORRENT-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
-    return;
-}
-foreach (var line in File.ReadLines("Banner.txt"))
-{
-    Console.WriteLine(line);
+    if (args.Length < 2)
+    {
+        Singleton.Logger.LogError("USAGE: SharpTorrent [TORRENT-PATH] [DOWNLOAD-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
+        return;
+    }
+    foreach (var line in File.ReadLines("Banner.txt"))
+    {
+        Console.WriteLine(line);
+    }
+
+    var torrentPath = args[0];
+    var downloadPath = args[1];
+    if (!IsValidPath(downloadPath)) throw new ArgumentException("download path provided by argument is malformed");
+    var torrent = new TorrentMetadata(torrentPath, downloadPath);
+    // default value
+    var maxConns = 500;
+
+    if (args.Length > 2)
+    {
+        if (int.TryParse(args[2], out var num)) maxConns = num;
+        else Singleton.Logger.LogError("ERROR: impossible to parse maxConns parameter, USING DEFAULT VALUE");
+    }
+
+    await torrent.Download(maxConns);
 }
 
-var torrent = new TorrentMetadata(args[0]);
-// default value
-var maxConns = 500;
 
-if (args.Length > 1)
+bool IsValidPath(string path)
 {
-    if (int.TryParse(args[1], out var num)) maxConns = num;
-    else Singleton.Logger.LogError("ERROR: impossible to parse maxConns parameter, USING DEFAULT VALUE");
+    if (string.IsNullOrWhiteSpace(path)) return false;
+    
+    try
+    {
+        Path.GetFullPath(path);
+        return path.IndexOfAny(Path.GetInvalidPathChars()) == -1;
+    }
+    catch
+    {
+        return false;
+    }
 }
-
-await torrent.Download(maxConns);

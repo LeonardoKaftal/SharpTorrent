@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace SharpTorrent.Torrent;
 
 public class TorrentInfo
@@ -12,13 +10,13 @@ public class TorrentInfo
     public ushort? Private { get; private set; }
     public List<TorrentFile>? Files { get; private set; }
     
-    public TorrentInfo(Dictionary<string, object> infoDict)
+    public TorrentInfo(Dictionary<string, object> infoDict, string? pathToDownloadFolder)
     {
         InfoDict = infoDict;
-        ComposeTorrentInfo();
+        ComposeTorrentInfo(pathToDownloadFolder);
     }
 
-    private void ComposeTorrentInfo()
+    private void ComposeTorrentInfo(string? pathToDownload)
     {
         try
         {
@@ -41,10 +39,13 @@ public class TorrentInfo
                     var fileDict = (Dictionary<string, object>)(file);
                     if (fileDict.Count == 0) throw new FormatException("Invalid torrent: file tree can't be empty");
                     var lengthField = (ulong)(long)fileDict["length"];
-                    var pathField = string.Join("/", (fileDict["path"] as IEnumerable<object> ?? 
-                                                      throw new FormatException("Invalid torrent: path field in the files tree is not present"))
-                        .Select(path => path.ToString()));
-                    Files.Add(new TorrentFile(lengthField, pathField!));
+                    var downloadPath = pathToDownload ?? "";
+                    downloadPath = Path.Combine(downloadPath, Name ?? "");
+                    var baseFilePath = string.Join("/", (fileDict["path"] as IEnumerable<object> ??
+                                                         throw new FormatException(
+                                                             "Invalid torrent: path field in the files tree is not present")));
+                    var obtainedPath = Path.Combine(downloadPath, baseFilePath);
+                    Files.Add(new TorrentFile(lengthField, obtainedPath));
                 }
             }
             // if there is not a files field nor a length field throw an error as is invalid

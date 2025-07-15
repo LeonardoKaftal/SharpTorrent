@@ -83,9 +83,14 @@ public class PeerConnection(IPEndPoint address): IDisposable
     {
         Singleton.Logger.LogInformation("Trying to establish valid TCP connection with peer {Ip}", address.ToString());
         
-        // tcp connection
-        await _tcpClient.ConnectAsync(address, new CancellationTokenSource(TimeSpan.FromSeconds(3)).Token);
-        
+        // tcp connection with timer of 5 seconds
+        var timer = Task.Delay(TimeSpan.FromSeconds(5));
+        var connTask = _tcpClient.ConnectAsync(address);
+
+        var completedTask = await Task.WhenAny(connTask, timer);
+        if (completedTask == timer) throw new ProtocolViolationException($"Can't connect with peer {address.ToString()} because of timeout");
+
+        await connTask;
         await HandshakePeer(_tcpClient.Client, infoHash, peerId);
         await ReceiveBitfield();
         

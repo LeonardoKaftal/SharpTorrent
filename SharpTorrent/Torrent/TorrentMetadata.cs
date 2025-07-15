@@ -13,6 +13,7 @@ namespace SharpTorrent.Torrent;
 
 public class TorrentMetadata
 {
+    private string? _pathToDownloadFolder;
     public readonly string Announce;
     public readonly TorrentInfo Info;
     private readonly List<string> _announceList = [];
@@ -20,8 +21,9 @@ public class TorrentMetadata
     private readonly string _peerId;
     private readonly ulong _torrentLength;
     
-    public TorrentMetadata(byte[] bencode)
+    public TorrentMetadata(byte[] bencode,string? pathToDownloadFolder = null )
     {
+        _pathToDownloadFolder = pathToDownloadFolder;
         var bencodeParser = new BencodeParser();
         var parsedDict =  bencodeParser.ParseBencode(bencode) as Dictionary<string, object> 
                          ?? throw new FormatException("Invalid torrent: parsed bencode is not a dict");
@@ -32,7 +34,7 @@ public class TorrentMetadata
         
         // infoMeta 
         if (parsedDict.TryGetValue("info", out var info) && info is Dictionary<string, object> infoDict)
-            Info = new TorrentInfo(infoDict);
+            Info = new TorrentInfo(infoDict, _pathToDownloadFolder);
         else throw new FormatException("Invalid torrent: info dictionary is missing or is not of the expected type");
         
         // announce list
@@ -55,8 +57,8 @@ public class TorrentMetadata
         _torrentLength = Info.Length ?? Info.Files!.Select(file => file.Length).Aggregate(0UL, (acc, val) => acc + val);
     }
 
-    public TorrentMetadata(string pathToTorrent) : this(File.ReadAllBytes(pathToTorrent)) {}
-
+    public TorrentMetadata(string pathToTorrent, string pathToDownloadFolder)
+        : this(File.ReadAllBytes(pathToTorrent), pathToDownloadFolder) {}
 
     private async Task<ConcurrentDictionary<IPEndPoint, Peer>> GetPeers(int maxConns)
     {
@@ -81,7 +83,7 @@ public class TorrentMetadata
     {
         // generate random string of length 20
         var random = new Random();
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const string chars = "-AZ0123-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable
             .Repeat(chars, 20)
             .Select(s => s[random.Next(s.Length)])
@@ -104,14 +106,20 @@ public class TorrentMetadata
     
     public async Task Download(int maxConns)
     {
+        if (_pathToDownloadFolder == null) throw new FormatException("Trying to download the torrent without specifying the base path for download");
+        _pathToDownloadFolder = Path.Combine(_pathToDownloadFolder, Info.Name ?? "torrent");
+        
+         var torrentFileList = new List<TorrentFile>();
+        if (Info.Files != null) torrentFileList.AddRange(Info.Files);
+        else torrentFileList.Add(new TorrentFile((ulong)Info.Length!, _pathToDownloadFolder));
+        
         var peers = await GetPeers(maxConns);
         Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
         if (peers.IsEmpty) return;
 
         var splitPieces = SplitPieces();
 
-
-        var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength);
+        var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength, torrentFileList);
         await peerManager.DownloadTorrent();
     }
 }
