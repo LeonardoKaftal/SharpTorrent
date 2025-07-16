@@ -7,18 +7,19 @@ using SharpTorrent.Utils;
 
 namespace SharpTorrent.P2P;
 
-public class PeerConnection(IPEndPoint address): IDisposable
+public class PeerConnection(Peer peer): IDisposable
 {
-    private readonly TcpClient _tcpClient = new();
+    private readonly TcpClient _peerSocket = new();
+    public readonly Peer ConnectedPeer = peer;
     public byte[] Bitfield { get; private set; } = [];
     public bool IsChocked;
 
     public async Task<TorrentMessage> ReadMessageAsync()
     {
-        return await ReadMessageAsync(_tcpClient);
+        return await ReadMessageAsync(_peerSocket);
     }
 
-    public async Task<TorrentMessage> ReadMessageAsync(TcpClient peerSocket)
+    public static async Task<TorrentMessage> ReadMessageAsync(TcpClient peerSocket)
     {
         var lengthBuff = new byte[4];
         var received = 0;
@@ -79,28 +80,28 @@ public class PeerConnection(IPEndPoint address): IDisposable
         return await readMessageTask; 
     }
     
-    public async Task EstablishConnection(byte[] infoHash, string peerId)
+    public async Task EstablishConnection(byte[] infoHash, string clientPeerId)
     {
-        Singleton.Logger.LogInformation("Trying to establish valid TCP connection with peer {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Trying to establish valid TCP connection with peer {Ip}", ConnectedPeer.ToString());
         
         // tcp connection with timer of 5 seconds
         var timer = Task.Delay(TimeSpan.FromSeconds(5));
-        var connTask = _tcpClient.ConnectAsync(address);
+        var connTask = _peerSocket.ConnectAsync(ConnectedPeer.Ip, ConnectedPeer.Port);
 
         var completedTask = await Task.WhenAny(connTask, timer);
-        if (completedTask == timer) throw new ProtocolViolationException($"Can't connect with peer {address.ToString()} because of timeout");
+        if (completedTask == timer) throw new ProtocolViolationException($"Can't connect with peer {ConnectedPeer.ToString()} because of timeout");
 
         await connTask;
-        await HandshakePeer(_tcpClient.Client, infoHash, peerId);
+        await HandshakePeer(_peerSocket.Client, infoHash, clientPeerId);
         await ReceiveBitfield();
         
-        Singleton.Logger.LogInformation("Successfully established connection with peer {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Successfully established connection with peer {Ip}", ConnectedPeer.ToString());
     }
 
     private async Task HandshakePeer(Socket socket, byte[] infoHash, string peerId)
     {
         var timerTask = Task.Delay(TimeSpan.FromSeconds(5));
-        Singleton.Logger.LogInformation("Trying to handshake peer {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Trying to handshake peer {Ip}", ConnectedPeer.ToString());
         
         var handshakeTask = Handshake.HandshakePeer(socket, infoHash, peerId);
         var finishedTask = await Task.WhenAny(timerTask, handshakeTask);
@@ -110,12 +111,12 @@ public class PeerConnection(IPEndPoint address): IDisposable
             
         await handshakeTask; 
         
-        Singleton.Logger.LogInformation("Received valid handshake from peer {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Received valid handshake from peer {Ip}", ConnectedPeer.ToString());
     }
 
     private async Task ReceiveBitfield()
     {
-        Singleton.Logger.LogInformation("Trying to receive bitfield from {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Trying to receive bitfield from {Ip}", ConnectedPeer.ToString());
         
         TorrentMessage parsedMessage;
         do
@@ -127,21 +128,21 @@ public class PeerConnection(IPEndPoint address): IDisposable
         if (parsedMessage.Type != MessageType.Bitfield) 
             throw new ProtocolViolationException($"Expected Bitfield message but got {parsedMessage.Type}");
             
-        Singleton.Logger.LogInformation("Successfully received Bitfield from {Ip}", address.ToString());
+        Singleton.Logger.LogInformation("Successfully received Bitfield from {Ip}", ConnectedPeer.ToString());
         Bitfield = parsedMessage.Payload;
     }
     
     public async Task SendMessageAsync(byte[] msg)
     {
-        await _tcpClient
+        await _peerSocket
             .GetStream()
             .WriteAsync(msg);
     }
 
     public void Dispose()
     {
-        _tcpClient?.Close();
-        _tcpClient?.Dispose();
+        _peerSocket?.Close();
+        _peerSocket?.Dispose();
     }
 
 }

@@ -39,6 +39,7 @@ public class PieceProgress(
                 var n = message.ParsePiece(Index, Buff, message.Payload);
                 Backlog--;
                 Downloaded += n;
+                Connection.ConnectedPeer.CalculateBacklog(n);
                 break;
             case MessageType.Cancel:
                 break;

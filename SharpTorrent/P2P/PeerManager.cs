@@ -20,7 +20,6 @@ public class PeerManager(
     List<TorrentFile> files)
 {
     private const uint MaxBlockSize = 16384;
-    private const uint MaxBacklog = 5;
     private readonly ConcurrentQueue<PieceWork> _workQueue = new();
     private readonly DiskManager _diskManager = new(files,pieceLength);
     private int _downloadedPieces = 0;
@@ -76,11 +75,16 @@ public class PeerManager(
                 Singleton.Logger.LogInformation("SHA256 {Name}: {Hash}", file.FileName, computedHash);
             }
         }
+        // failed download
+        else
+        {
+            Singleton.Logger.LogCritical("Torrent download failed");
+        }
     }
 
     private async Task StartPeerTask(KeyValuePair<IPEndPoint,Peer> peer)
     {
-        using var peerConn = new PeerConnection(peer.Key);
+        using var peerConn = new PeerConnection(peer.Value);
         var unchockeMessage = new TorrentMessage(MessageType.Unchoke, []).Serialize();
         var interestedMessage = new TorrentMessage(MessageType.Interested, []).Serialize();
         PieceWork workPiece = null;
@@ -162,7 +166,7 @@ public class PeerManager(
         {
             while (!state.Connection.IsChocked
                    && state.Requested < workPiece.Length
-                   && state.Backlog < MaxBacklog)
+                   && state.Backlog < state.Connection.ConnectedPeer.Backlog)
             {
                 var blockSize = MaxBlockSize;
                 if (workPiece.Length - state.Requested < MaxBlockSize)
