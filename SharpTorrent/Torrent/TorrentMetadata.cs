@@ -119,7 +119,9 @@ public class TorrentMetadata
 
         var splitPieces = SplitPieces();
 
-        var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength, torrentFileList);
+        var stateFilePath = Path.Combine(_pathToDownloadFolder, $".{Info.Name}.state");
+
+        var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength, torrentFileList, stateFilePath);
         await peerManager.DownloadTorrent();
     }
 }

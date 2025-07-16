@@ -14,7 +14,7 @@ public class Peer(string? peerId, IPAddress ip, ushort port)
     private DateTime _lastTimeReceivedBytes = DateTime.Now;
     private long _bytesReceived;
     private long _bytesReceivedLastTime;
-    public long Kbs;
+    private long _kbs;
 
     // default value
     public long Backlog { get; private set; } = 5;
@@ -123,22 +123,22 @@ public class Peer(string? peerId, IPAddress ip, ushort port)
         _bytesReceived += n;
 
         var duration = (DateTime.Now - _lastTimeReceivedBytes).TotalSeconds;
-        if (duration < 0.5) Kbs = 0;
+        if (duration < 0.5) _kbs = 0;
 
         var frequency = _bytesReceived - _bytesReceivedLastTime;
 
         _lastTimeReceivedBytes = DateTime.Now;
         _bytesReceivedLastTime = _bytesReceived;
 
-        Kbs = (long)(frequency / 1024 / duration);
+        _kbs = (long)(frequency / 1024 / duration);
     }
 
     public void CalculateBacklog(uint bytesReceived)
     {
         const uint backlogDefaultValue = 5;
         SetKbPerSecondSpeed(bytesReceived);
-        if (Kbs < 20) Backlog = Kbs + 2;
-        else Backlog = Kbs / 5 + 18;
+        if (_kbs < 20) Backlog = _kbs + 2;
+        else Backlog = _kbs / 5 + 18;
         Backlog = Math.Max(Backlog, backlogDefaultValue);
     }
 

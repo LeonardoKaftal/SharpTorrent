@@ -17,33 +17,24 @@ public class PeerManager(
     string peerId,
     ulong torrentLength,
     uint pieceLength,
-    List<TorrentFile> files)
+    List<TorrentFile> files, 
+    string pathForStateFile)
 {
     private const uint MaxBlockSize = 16384;
     private readonly ConcurrentQueue<PieceWork> _workQueue = new();
-    private readonly DiskManager _diskManager = new(files,pieceLength);
+    private readonly DiskManager _diskManager = new(files, pathForStateFile);
     private int _downloadedPieces = 0;
-    
-    // last piece could be truncated, it's needed to be calculated by hand in that case
-    private uint CalculatePieceLength(uint index)
-    {
-        var (begin, end) = CalculateBoundForPiece(index);
-        return (uint)(int)(end - begin);
-    }
-
-    private Tuple<ulong, ulong> CalculateBoundForPiece(uint index)
-    {
-        var begin = (ulong) index * pieceLength;
-        var end = begin + pieceLength;
-
-        if (end > torrentLength) end = torrentLength;
-        return new Tuple<ulong, ulong>(begin, end);
-    }
     
     public async Task DownloadTorrent()
     {
         for (uint i = 0; i < pieces.Length; i++)
         {
+            // previous state
+            if (_diskManager.StateFileContainsPiece(i))
+            {
+                _downloadedPieces++;
+                continue;
+            }
             var piece = pieces[i];
             var length = CalculatePieceLength(i);
             var workPiece = new PieceWork(i, piece, length);
@@ -80,6 +71,22 @@ public class PeerManager(
         {
             Singleton.Logger.LogCritical("Torrent download failed");
         }
+    }
+    
+    // last piece could be truncated, it's needed to be calculated by hand in that case
+    private uint CalculatePieceLength(uint index)
+    {
+        var (begin, end) = CalculateBoundForPiece(index);
+        return (uint)(int)(end - begin);
+    }
+
+    private Tuple<ulong, ulong> CalculateBoundForPiece(uint index)
+    {
+        var begin = (ulong) index * pieceLength;
+        var end = begin + pieceLength;
+
+        if (end > torrentLength) end = torrentLength;
+        return new Tuple<ulong, ulong>(begin, end);
     }
 
     private async Task StartPeerTask(KeyValuePair<IPEndPoint,Peer> peer)
@@ -140,7 +147,7 @@ public class PeerManager(
                     "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers", percentage, peers.Count);
 
 
-                await _diskManager.WritePieceToDisk(pieceResult);
+                await _diskManager.WritePieceToDisk(pieceResult, pieceLength);
                 workPiece = null;
             } while (!_workQueue.IsEmpty);
         }
