@@ -19,6 +19,7 @@ public class UdpTrackerAnnounceResponseTest
     [Fact]
     public void UdpTrackerAnnounceResponse_TestConstructorWithValidResponseBytes_ReturnAnnounceResponse()
     {
+        // given
         var myTransactionId = (uint) RandomNumberGenerator.GetInt32(1,int.MaxValue);
         var expectedPeers = new ConcurrentDictionary<IPEndPoint, Peer>();
         
@@ -40,7 +41,9 @@ public class UdpTrackerAnnounceResponseTest
             .Concat(expected.Peers.SelectMany(peer => Peer.SerializePeer(peer.Value)))
             .ToArray();
         
+        // when
         var actual = new UdpTrackerAnnounceResponse(expected.TransactionId, input, AddressFamily.InterNetwork);
+        // then
         actual.Should().BeEquivalentTo(expected);
     }
     

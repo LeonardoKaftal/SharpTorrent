@@ -16,22 +16,25 @@ public class BencodeParserTest
     [Fact]
     public void BencodeParser_ParseBencode_ReturnListOfObject()
     {
+        // given
         _bencodeParser = new BencodeParser();
-        // simple bencode
-        const string input = "l4:spami3e6:piecesli45e3:abcee";
-        var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
+        const string bencodeInput = "l4:spami3e6:piecesli45e3:abcee";
+        // when
+        var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(bencodeInput));
         
         List<object> expected = [
              "spam", (long) 3, 
              "pieces", new List<object> { (long)45, "abc" } 
         ];
-
+        
+        // then
         act.Should().BeEquivalentTo(expected);
     }
 
     [Fact]
     public void BencodeParser_ParseBencode_ReturnDictOfObject()
     {
+        // given
         _bencodeParser = new BencodeParser();
         
         // more complex bencode
@@ -39,7 +42,6 @@ public class BencodeParserTest
                     "4:infod12:piece lengthi512e" +
                     "6:pieces12:abcdef123456ee";
         
-        var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
         
         var expected = new Dictionary<string, object>
         {
@@ -53,26 +55,36 @@ public class BencodeParserTest
             }
         };
         
+        // when
+        var act = _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
+        
+        // then 
         act.Should().BeEquivalentTo(expected);
     }
 
     [Fact]
-    public void ParseBencode_WithNonNumericInteger_ShouldThrowFormatException()
+    public void BencodeParser_ParseBencodeWithNonNumericInteger_ShouldThrowFormatException()
     {
+        // given 
         _bencodeParser = new BencodeParser();
         const string input = "iabe";
+        // when
         var act = () => _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
-
+        
+        // then
         act.Should().Throw<FormatException>().WithMessage("Invalid bencode: *");
     }
 
     [Fact]
-    public void ParseBencode_WithMalformedDictionary_ShouldThrowFormatException()
+    public void BencodeParser_ParseBencodeWithMalformedDictionary_ShouldThrowFormatException()
     {
+        // given
         _bencodeParser = new BencodeParser();
         const string input = "d6:lengthi12345e4:name";
+        // when
         var act = () => _bencodeParser.ParseBencode(Encoding.UTF8.GetBytes(input));
-
+    
+        // then
         act.Should().Throw<FormatException>().WithMessage("Invalid bencode: *");
     }
 }
