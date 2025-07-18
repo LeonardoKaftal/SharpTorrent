@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Net;
+using SharpTorrent.P2P.Piece;
 
 namespace SharpTorrent.P2P.Message;
 
@@ -116,4 +117,13 @@ public record TorrentMessage
         return new TorrentMessage(MessageType.Have, payload);
     }
     
+    
+    public static TorrentMessage FormatPieceMessage(PieceResult piece, uint begin)
+    {
+        var buff = new byte[8 + piece.Buf.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(buff.AsSpan(0, 4), piece.Index);
+        BinaryPrimitives.WriteUInt32BigEndian(buff.AsSpan(4, 4), begin);
+        piece.Buf.CopyTo(buff, 8);
+        return new TorrentMessage(MessageType.Piece, buff);
+    }
 }

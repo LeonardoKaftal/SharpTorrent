@@ -15,20 +15,22 @@ public class DiskManager : IDisposable
     private readonly FileStream _stateFileStream;
     private readonly SemaphoreSlim _stateLock = new(1,1);
     public readonly byte[] MyBitfield;
+    private readonly uint _pieceLength;
 
-    public DiskManager(List<TorrentFile> files, string pathForStateFile, uint piecesLength)
+    public DiskManager(List<TorrentFile> files, string pathForStateFile, uint piecesLength, uint pieceLength)
     {
-        this._files = files;
+        _files = files;
+        _pieceLength = pieceLength;
         var folder = Path.GetDirectoryName(pathForStateFile);
         if (!string.IsNullOrEmpty(folder)) Directory.CreateDirectory(folder);
         _stateFileStream = File.Open(pathForStateFile, FileMode.OpenOrCreate);
         if (OperatingSystem.IsWindows()) File.SetAttributes(pathForStateFile, FileAttributes.Hidden);
-        this.MyBitfield = ReadState(piecesLength);
+        MyBitfield = ReadState(piecesLength);
     }
 
-    public async Task WritePieceToDisk(PieceResult pieceResult, uint pieceLength)
+    public async Task WritePieceToDisk(PieceResult pieceResult)
     {
-        var globalOffset = (ulong)pieceResult.Index * pieceLength;
+        var globalOffset = (ulong)pieceResult.Index * _pieceLength;
         var remaining = (ulong) pieceResult.Buf.Length;
         ulong pieceBuffOffset = 0;
 
@@ -82,6 +84,76 @@ public class DiskManager : IDisposable
         }
     }
 
+    private byte[] ReadState(uint piecesLength)
+    {
+        // Calculate the correct bitfield size in bytes
+        var bitfieldSizeInBytes = (int)Math.Ceiling(piecesLength / 8.0);
+        var bitfield = new byte[bitfieldSizeInBytes];
+        
+        _stateFileStream.Seek(0, SeekOrigin.Begin);
+        
+        // Read the bitfield from the file (if it exists and has the right size)
+        if (_stateFileStream.Length >= bitfieldSizeInBytes)
+        {
+            _stateFileStream.Read(bitfield, 0, bitfieldSizeInBytes);
+        }
+        
+        return bitfield;
+    }
+   
+    // return the piece from disk, if it does not exist return an empty piece
+    public async Task<PieceResult> ReadPieceFromDisk(uint index, uint begin, uint length)
+    {
+        // failure, piece it's not present on disk
+        if (!Bitfield.HasPiece(MyBitfield, index)) return new PieceResult(index, []);
+
+        var buffer = new byte[length];
+        var globalOffset = (ulong)index * _pieceLength + begin;
+        ulong remaining = length;
+        ulong pieceBuffOffset = 0;
+
+        foreach (var file in _files)
+        {
+            if (globalOffset >= file.Length)
+            {
+                globalOffset -= file.Length;
+                continue;
+            }
+
+            var toRead = Math.Min(file.Length - globalOffset, remaining);
+            var fileLock = _filesLocks.GetOrAdd(file.FilePath, _ => new SemaphoreSlim(1, 1));
+            await fileLock.WaitAsync();
+
+            try
+            {
+                var fs = _filesStreams.GetOrAdd(file.FilePath,
+                    new FileStream(file.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read));
+
+                fs.Seek((long)globalOffset, SeekOrigin.Begin);
+                var read = await fs.ReadAsync(buffer, (int)pieceBuffOffset, (int)toRead);
+
+                // If the file is too short or corrupted, return empty result
+                if (read != (int)toRead)
+                {
+                    return new PieceResult(index, []);
+                }
+            }
+            finally
+            {
+                fileLock.Release();
+            }
+
+            pieceBuffOffset += toRead;
+            remaining -= toRead;
+            globalOffset = 0;
+
+            if (remaining == 0) break;
+        }
+
+        return new PieceResult(index, buffer);
+    }
+    
+    
     public void Dispose()
     {
         foreach (var stream in _filesStreams.Values)
@@ -98,22 +170,5 @@ public class DiskManager : IDisposable
         
         _stateFileStream.Dispose();
         _stateLock.Dispose();
-    }
-
-    private byte[] ReadState(uint piecesLength)
-    {
-        // Calculate the correct bitfield size in bytes
-        var bitfieldSizeInBytes = (int)Math.Ceiling(piecesLength / 8.0);
-        var bitfield = new byte[bitfieldSizeInBytes];
-        
-        _stateFileStream.Seek(0, SeekOrigin.Begin);
-        
-        // Read the bitfield from the file (if it exists and has the right size)
-        if (_stateFileStream.Length >= bitfieldSizeInBytes)
-        {
-            _stateFileStream.Read(bitfield, 0, bitfieldSizeInBytes);
-        }
-        
-        return bitfield;
     }
 }

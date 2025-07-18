@@ -107,10 +107,16 @@ public class TorrentMetadata
     public async Task Download(int maxConns)
     {
         if (_pathToDownloadFolder == null) throw new FormatException("Trying to download the torrent without specifying the base path for download");
-        _pathToDownloadFolder = Path.Combine(_pathToDownloadFolder, Info.Name ?? "torrent");
+        // for single torrent file path
+        _pathToDownloadFolder = Path.Combine(_pathToDownloadFolder, ((Info.Name ?? "downloaded") + "_torrent"));
+        var stateFilePath = Path.Combine(_pathToDownloadFolder, $".{Info.Name}.state");
+        _pathToDownloadFolder = Path.Combine(_pathToDownloadFolder, Info.Name ?? "download"); 
         
-         var torrentFileList = new List<TorrentFile>();
+        
+        var torrentFileList = new List<TorrentFile>();
+         // multifiles torrent
         if (Info.Files != null) torrentFileList.AddRange(Info.Files);
+        // single file torrent
         else torrentFileList.Add(new TorrentFile((ulong)Info.Length!, _pathToDownloadFolder));
         
         var peers = await GetPeers(maxConns);
@@ -119,7 +125,6 @@ public class TorrentMetadata
 
         var splitPieces = SplitPieces();
 
-        var stateFilePath = Path.Combine(_pathToDownloadFolder, $".{Info.Name}.state");
 
         var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength, torrentFileList, stateFilePath);
         await peerManager.DownloadTorrent();

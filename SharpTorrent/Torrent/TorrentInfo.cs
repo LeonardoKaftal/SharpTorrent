@@ -39,8 +39,9 @@ public class TorrentInfo
                     var fileDict = (Dictionary<string, object>)(file);
                     if (fileDict.Count == 0) throw new FormatException("Invalid torrent: file tree can't be empty");
                     var lengthField = (ulong)(long)fileDict["length"];
+                    // field passed by argument by the user, could be null in unit test 
                     var downloadPath = pathToDownload ?? "";
-                    downloadPath = Path.Combine(downloadPath, Name ?? "");
+                    downloadPath = Path.Combine(downloadPath, Name ?? "") + "_torrent";
                     var baseFilePath = string.Join("/", (fileDict["path"] as IEnumerable<object> ??
                                                          throw new FormatException(
                                                              "Invalid torrent: path field in the files tree is not present")));

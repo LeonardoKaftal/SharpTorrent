@@ -22,7 +22,7 @@ public class PeerManager(
 {
     private const uint MaxBlockSize = 16384;
     private readonly ConcurrentQueue<PieceWork> _workQueue = new();
-    private readonly DiskManager _diskManager = new(files, pathForStateFile, (uint) pieces.Length);
+    private readonly DiskManager _diskManager = new(files, pathForStateFile, (uint) pieces.Length,pieceLength);
     private int _downloadedPieces = 0;
     
     public async Task DownloadTorrent()
@@ -42,7 +42,6 @@ public class PeerManager(
             _workQueue.Enqueue(workPiece);
         }
         
-        Singleton.Logger.LogInformation($"[RESUME] {_downloadedPieces} pieces already completed, out of {pieces.Length} ({(double)_downloadedPieces / pieces.Length:P2})");
 
         var tasks = peers.Select(StartPeerTask).ToList();
 
@@ -143,14 +142,14 @@ public class PeerManager(
 
                 var pieceResult = new PieceResult(workPiece.Index, piece);
 
-                await _diskManager.WritePieceToDisk(pieceResult, pieceLength);
+                await _diskManager.WritePieceToDisk(pieceResult);
                 await peerConn.SendMessageAsync(haveMessage);
 
                 Interlocked.Increment(ref _downloadedPieces);
                 var percentage = (double)_downloadedPieces / pieces.Length * 100;
                 Singleton.Logger.LogInformation(
-                    "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers, downloaded piece: {DownloadedPiece}", 
-                    percentage, peers.Count, _downloadedPieces);
+                    "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers", 
+                    percentage, peers.Count);
 
                 workPiece = null;
             } while (!_workQueue.IsEmpty);
@@ -191,7 +190,7 @@ public class PeerManager(
                 state.Backlog++;
                 state.Requested += blockSize;
             }
-            await state.ReadState();
+            await state.ReadState(_diskManager);
         }
 
         return state.Buff;

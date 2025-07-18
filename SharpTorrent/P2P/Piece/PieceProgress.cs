@@ -1,4 +1,6 @@
+using System.Buffers.Binary;
 using Microsoft.Extensions.Logging;
+using SharpTorrent.Disk;
 using SharpTorrent.P2P.Message;
 using SharpTorrent.Utils;
 
@@ -18,7 +20,7 @@ public class PieceProgress(
     public uint Backlog = 0;
 
 
-    public async Task ReadState()
+    public async Task ReadState(DiskManager diskManager)
     {
         // blocking call
         var message = await Connection.ReadMessageAsync();
@@ -41,7 +43,18 @@ public class PieceProgress(
                 Downloaded += n;
                 Connection.ConnectedPeer.CalculateBacklog(n);
                 break;
-            case MessageType.Cancel:
+            case MessageType.Request:
+                if (message.Payload.Length != 12) return;
+                Singleton.Logger.LogWarning("Arrivata una request");
+                var index = BinaryPrimitives.ReadUInt32BigEndian(message.Payload.AsSpan()[0..4]);
+                var begin = BinaryPrimitives.ReadUInt32BigEndian(message.Payload.AsSpan()[4..8]);
+                var length = BinaryPrimitives.ReadUInt32BigEndian(message.Payload.AsSpan()[8..12]);
+                var piece = await diskManager.ReadPieceFromDisk(index, begin, length);
+                if (piece.Buf.Length == 0) return;
+                
+                Singleton.Logger.LogInformation("Sending piece {piece} to peer {peer} after his request", index, peerConnection.ConnectedPeer.ToString());
+                var pieceMessage = TorrentMessage.FormatPieceMessage(piece, begin);
+                await peerConnection.SendMessageAsync(pieceMessage.Serialize());
                 break;
         }
     }
