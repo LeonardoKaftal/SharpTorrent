@@ -22,15 +22,16 @@ public class PeerManager(
 {
     private const uint MaxBlockSize = 16384;
     private readonly ConcurrentQueue<PieceWork> _workQueue = new();
-    private readonly DiskManager _diskManager = new(files, pathForStateFile);
+    private readonly DiskManager _diskManager = new(files, pathForStateFile, (uint) pieces.Length);
     private int _downloadedPieces = 0;
     
     public async Task DownloadTorrent()
     {
+        // Count already downloaded pieces and add remaining ones to work queue
         for (uint i = 0; i < pieces.Length; i++)
         {
-            // previous state
-            if (_diskManager.StateFileContainsPiece(i))
+            // Check if piece is already downloaded (previous state)
+            if (Bitfield.HasPiece(_diskManager.MyBitfield, i))
             {
                 _downloadedPieces++;
                 continue;
@@ -40,6 +41,8 @@ public class PeerManager(
             var workPiece = new PieceWork(i, piece, length);
             _workQueue.Enqueue(workPiece);
         }
+        
+        Singleton.Logger.LogInformation($"[RESUME] {_downloadedPieces} pieces already completed, out of {pieces.Length} ({(double)_downloadedPieces / pieces.Length:P2})");
 
         var tasks = peers.Select(StartPeerTask).ToList();
 
@@ -64,6 +67,7 @@ public class PeerManager(
                     .Replace("-", "")
                     .ToLowerInvariant();
                 Singleton.Logger.LogInformation("SHA256 {Name}: {Hash}", file.FileName, computedHash);
+                stream.Dispose();
             }
         }
         // failed download
@@ -138,16 +142,16 @@ public class PeerManager(
                     throw new ProtocolViolationException("The downloaded piece have invalid hash!");
 
                 var pieceResult = new PieceResult(workPiece.Index, piece);
-                await peerConn.SendMessageAsync(haveMessage);
-
-                // percentage
-                _downloadedPieces = Interlocked.Increment(ref _downloadedPieces);
-                var percentage = (double)_downloadedPieces / pieces.Length * 100;
-                Singleton.Logger.LogInformation(
-                    "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers", percentage, peers.Count);
-
 
                 await _diskManager.WritePieceToDisk(pieceResult, pieceLength);
+                await peerConn.SendMessageAsync(haveMessage);
+
+                Interlocked.Increment(ref _downloadedPieces);
+                var percentage = (double)_downloadedPieces / pieces.Length * 100;
+                Singleton.Logger.LogInformation(
+                    "Downloaded percentage {Percentage:F2}%, downloading from {PeerCount} peers, downloaded piece: {DownloadedPiece}", 
+                    percentage, peers.Count, _downloadedPieces);
+
                 workPiece = null;
             } while (!_workQueue.IsEmpty);
         }

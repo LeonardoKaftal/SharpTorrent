@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using SharpTorrent.P2P;
 using SharpTorrent.P2P.Piece;
 using SharpTorrent.Torrent;
 
@@ -13,15 +14,16 @@ public class DiskManager : IDisposable
     // state file is an hidden file saved in the download files folder, it's needed to resume download if it got interrupted 
     private readonly FileStream _stateFileStream;
     private readonly SemaphoreSlim _stateLock = new(1,1);
+    public readonly byte[] MyBitfield;
 
-    public DiskManager(List<TorrentFile> files, string pathForStateFile)
+    public DiskManager(List<TorrentFile> files, string pathForStateFile, uint piecesLength)
     {
         this._files = files;
         var folder = Path.GetDirectoryName(pathForStateFile);
-
         if (!string.IsNullOrEmpty(folder)) Directory.CreateDirectory(folder);
-        this._stateFileStream = File.Open(pathForStateFile, FileMode.OpenOrCreate);
+        _stateFileStream = File.Open(pathForStateFile, FileMode.OpenOrCreate);
         if (OperatingSystem.IsWindows()) File.SetAttributes(pathForStateFile, FileAttributes.Hidden);
+        this.MyBitfield = ReadState(piecesLength);
     }
 
     public async Task WritePieceToDisk(PieceResult pieceResult, uint pieceLength)
@@ -48,22 +50,11 @@ public class DiskManager : IDisposable
                 var fs = _filesStreams.GetOrAdd(file.FilePath,new FileStream(file.FilePath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Write));
                 fs.Seek((long)globalOffset, SeekOrigin.Begin);
                 await fs.WriteAsync(pieceResult.Buf, (int)pieceBuffOffset, (int)toWrite);
-                
+                await fs.FlushAsync();
             }
             finally
             {
-                // write to the state file to resume download if interrupted
                 fileLock.Release();
-                try
-                {
-                    await _stateLock.WaitAsync();
-                    _stateFileStream.Seek(pieceResult.Index, SeekOrigin.Begin);
-                    _stateFileStream.WriteByte(1);
-                }
-                finally
-                {
-                    _stateLock.Release();
-                }
             }
 
             pieceBuffOffset += toWrite;
@@ -71,6 +62,23 @@ public class DiskManager : IDisposable
             globalOffset = 0; 
             
             if (remaining == 0) break;
+        }
+
+        // Write to the state file to resume download if interrupted
+        await _stateLock.WaitAsync();
+        try
+        {
+            // Set the bit corresponding to the completed piece
+            Bitfield.SetPiece(MyBitfield, pieceResult.Index);
+            
+            // Save the entire bitfield to the state file
+            _stateFileStream.Seek(0, SeekOrigin.Begin);
+            await _stateFileStream.WriteAsync(MyBitfield, 0, MyBitfield.Length);
+            await _stateFileStream.FlushAsync();
+        }
+        finally
+        {
+            _stateLock.Release();
         }
     }
 
@@ -92,11 +100,20 @@ public class DiskManager : IDisposable
         _stateLock.Dispose();
     }
 
-    // not thread safe
-    public bool StateFileContainsPiece(long index)
+    private byte[] ReadState(uint piecesLength)
     {
-        if (_stateFileStream.Length < index) return false;
-        _stateFileStream.Seek( index,SeekOrigin.Begin);
-        return _stateFileStream.ReadByte() == 1;
+        // Calculate the correct bitfield size in bytes
+        var bitfieldSizeInBytes = (int)Math.Ceiling(piecesLength / 8.0);
+        var bitfield = new byte[bitfieldSizeInBytes];
+        
+        _stateFileStream.Seek(0, SeekOrigin.Begin);
+        
+        // Read the bitfield from the file (if it exists and has the right size)
+        if (_stateFileStream.Length >= bitfieldSizeInBytes)
+        {
+            _stateFileStream.Read(bitfield, 0, bitfieldSizeInBytes);
+        }
+        
+        return bitfield;
     }
 }
