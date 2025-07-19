@@ -45,10 +45,10 @@ cd SharpTorrent
 cd SharpTorrent
 dotnet build
 dotnet run -- path/to/file.torrent path/to/download/folder
-
-📫 Contact
-Feel free to open an issue for bugs, feature requests, or contributions!
-
-
+🎥 Demo
+Guarda SharpTorrent in azione:
+```
 
 
+## ▶️ VIDEO
+https://file.garden/aHvuZ7j9PThoD4Wy/output1.webm
