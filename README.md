@@ -1,8 +1,54 @@
-# SharpTorrent
-A torrent client written in c# that use The BitTorrent Protocol Specification V1: 
-https://www.bittorrent.org/beps/bep_0003.html
+# 🚀 SharpTorrent
 
-In future it's planned to be implemented also V2
-https://bittorrent.org/beps/bep_0052.html 
+**SharpTorrent** is a crossplatform torrent client written in **C#**, implementing the [BitTorrent Protocol Specification v1 (BEP 0003)](https://www.bittorrent.org/beps/bep_0003.html).
 
-WORK IN PROGRESS
+---
+
+## 📌 Key Features
+
+- ✅ **Supports both IPv4 and IPv6**
+- ✅ **UDP tracker support**
+- ✅ **Handles multiple peer connections**
+- ✅ **Download state recovery** after interruptions
+- ✅ Fully handles **Bitfield, Request, Piece, Choke/Unchoke** messages
+
+---
+
+## 🧪 Features in Progress
+
+- ⏳ Support for **Magnet Links**
+- ⏳ **DHT (Distributed Hash Table)** support
+- ⏳ Message encryption (BEP 6 / BEP 10)
+
+---
+
+## 📂 Architecture Overview
+
+- `P2P`: Manages TCP peer connections, message parsing, bitfield exchange
+- `Tracker`: Parses `.torrent` files and communicates with UDP trackers
+- `Disk`: Manages file writing, piece verification, and download state
+
+---
+
+## 🛠 Requirements
+
+- .NET 8.0+
+- Compatible with Windows, Linux, and macOS
+
+---
+
+## ▶️ Quick Start
+
+```bash
+git clone https://github.com/your-username/sharptorrent.git
+cd SharpTorrent
+cd SharpTorrent
+dotnet build
+dotnet run -- path/to/file.torrent path/to/download/folder
+
+📫 Contact
+Feel free to open an issue for bugs, feature requests, or contributions!
+
+
+
+
