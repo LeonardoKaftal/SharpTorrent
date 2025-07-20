@@ -51,32 +51,11 @@ public class PeerManager(
         if (_downloadedPieces == pieces.Length)
         {
             Singleton.Logger.LogInformation("Successfully downloaded torrent, 100% download completed");
-            
-            // wait for disk manager to be disposed
-            await Task.Delay(500);
-            
-            // sha256 log
-            using var sha = SHA256.Create();
-            foreach (var file in files)
-            {
-                var stream = new FileStream(file.FilePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                var hash = await sha.ComputeHashAsync(stream);
-                var computedHash = BitConverter
-                    .ToString(hash)
-                    .Replace("-", "")
-                    .ToLowerInvariant();
-                Singleton.Logger.LogInformation("SHA256 {Name}: {Hash}", file.FileName, computedHash);
-                stream.Dispose();
-            }
-
             return true;
         }
         // failed download
-        else
-        {
-            Singleton.Logger.LogCritical("Torrent download failed");
-            return false;
-        }
+        Singleton.Logger.LogCritical("Torrent download failed");
+        return false;
     }
     
     // last piece could be truncated, it's needed to be calculated by hand in that case

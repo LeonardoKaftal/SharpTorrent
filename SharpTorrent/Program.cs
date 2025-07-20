@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using System.Reflection;
+using Microsoft.Extensions.Logging;
 using SharpTorrent.Torrent;
 using SharpTorrent.Utils;
 
@@ -14,9 +15,19 @@ async Task Main()
         return;
     }
 
-    foreach (var line in File.ReadLines("Banner.txt"))
+    var exeDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+    var bannerPath = Path.Combine(exeDirectory!, "Banner.txt");
+
+    if (File.Exists(bannerPath))
     {
-        Console.WriteLine(line);
+        foreach (var line in File.ReadLines(bannerPath))
+        {
+            Console.WriteLine(line);
+        }
+    }
+    else
+    {
+        Singleton.Logger.LogWarning($"Banner.txt not found at: {bannerPath}");
     }
 
     var torrentPath = args[0];
