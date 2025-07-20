@@ -10,13 +10,13 @@ async Task Main()
 {
     if (args.Length < 2)
     {
-        Singleton.Logger.LogError(
-            "USAGE: SharpTorrent [TORRENT-PATH] [DOWNLOAD-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
+        Console.WriteLine("USAGE: SharpTorrent [TORRENT-PATH] [DOWNLOAD-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
         return;
     }
 
-    var exeDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
-    var bannerPath = Path.Combine(exeDirectory!, "Banner.txt");
+    var exeDirectory = AppContext.BaseDirectory;
+    var bannerPath = Path.Combine(exeDirectory, "Banner.txt");
+
 
     if (File.Exists(bannerPath))
     {
