@@ -2,21 +2,7 @@ namespace SharpTorrent.Torrent;
 
 using System.IO;
 
-public class TorrentFile
+public record TorrentFile(ulong Length, string FilePath)
 {
-    public readonly ulong Length;
-    public readonly string FilePath;
-    public readonly string FileName;
-
-    public TorrentFile(ulong length, string filePath)
-    {
-        this.Length = length;
-        this.FilePath = filePath;
-        this.FileName = GetFileName();
-    }
-
-    private string GetFileName()
-    {
-        return Path.GetFileName(FilePath);
-    }
+    public string FileName { get; } = Path.GetFileName(FilePath);
 };
