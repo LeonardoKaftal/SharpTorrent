@@ -49,4 +49,4 @@ dotnet run -- path/to/file.torrent path/to/download/folder
 
 
 ## ▶️ VIDEO
-https://file.garden/aHvuZ7j9PThoD4Wy/output1.webm
+https://file.garden/aHvuZ7j9PThoD4Wy/video%20torrent.webm
