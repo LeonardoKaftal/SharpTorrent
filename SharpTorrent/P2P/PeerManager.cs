@@ -25,7 +25,7 @@ public class PeerManager(
     private readonly DiskManager _diskManager = new(files, pathForStateFile, (uint) pieces.Length,pieceLength);
     private int _downloadedPieces = 0;
     
-    public async Task DownloadTorrent()
+    public async Task<bool> DownloadTorrent()
     {
         // Count already downloaded pieces and add remaining ones to work queue
         for (uint i = 0; i < pieces.Length; i++)
@@ -68,11 +68,14 @@ public class PeerManager(
                 Singleton.Logger.LogInformation("SHA256 {Name}: {Hash}", file.FileName, computedHash);
                 stream.Dispose();
             }
+
+            return true;
         }
         // failed download
         else
         {
             Singleton.Logger.LogCritical("Torrent download failed");
+            return false;
         }
     }
     

@@ -9,9 +9,11 @@ async Task Main()
 {
     if (args.Length < 2)
     {
-        Singleton.Logger.LogError("USAGE: SharpTorrent [TORRENT-PATH] [DOWNLOAD-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
+        Singleton.Logger.LogError(
+            "USAGE: SharpTorrent [TORRENT-PATH] [DOWNLOAD-PATH] optional:[MAX-NUMBER-OF-CONNECTION]");
         return;
     }
+
     foreach (var line in File.ReadLines("Banner.txt"))
     {
         Console.WriteLine(line);
@@ -22,7 +24,7 @@ async Task Main()
     if (!IsValidPath(downloadPath)) throw new ArgumentException("download path provided by argument is malformed");
     var torrent = new TorrentMetadata(torrentPath, downloadPath);
     // default value
-    var maxConns = 500;
+    var maxConns = 120;
 
     if (args.Length > 2)
     {
@@ -30,9 +32,15 @@ async Task Main()
         else Singleton.Logger.LogError("ERROR: impossible to parse maxConns parameter, USING DEFAULT VALUE");
     }
 
-    await torrent.Download(maxConns);
+    var isDownloaded = await torrent.Download(maxConns);
+    // try one last time
+    if (!isDownloaded)
+    {
+        Singleton.Logger.LogWarning("Attempting to download the torrent a second time");
+        torrent = new TorrentMetadata(torrentPath, downloadPath);
+        await torrent.Download(maxConns);
+    }
 }
-
 
 bool IsValidPath(string path)
 {
@@ -42,8 +50,7 @@ bool IsValidPath(string path)
     {
         Path.GetFullPath(path);
         return path.IndexOfAny(Path.GetInvalidPathChars()) == -1;
-    }
-    catch
+    } catch
     {
         return false;
     }

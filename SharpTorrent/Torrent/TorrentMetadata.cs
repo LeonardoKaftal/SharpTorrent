@@ -83,7 +83,7 @@ public class TorrentMetadata
     {
         // generate random string of length 20
         var random = new Random();
-        const string chars = "-AZ0123-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const string chars = "-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable
             .Repeat(chars, 20)
             .Select(s => s[random.Next(s.Length)])
@@ -104,7 +104,7 @@ public class TorrentMetadata
     }
 
     
-    public async Task Download(int maxConns)
+    public async Task<bool> Download(int maxConns)
     {
         if (_pathToDownloadFolder == null) throw new FormatException("Trying to download the torrent without specifying the base path for download");
         // for single torrent file path
@@ -121,12 +121,11 @@ public class TorrentMetadata
         
         var peers = await GetPeers(maxConns);
         Singleton.Logger.LogInformation("Finished retrieving peers, found {Found} peers", peers.Count);
-        if (peers.IsEmpty) return;
+        if (peers.IsEmpty) return false;
 
         var splitPieces = SplitPieces();
 
-
         var peerManager = new PeerManager(peers, splitPieces, _infoHash, _peerId, _torrentLength, Info.PieceLength, torrentFileList, stateFilePath);
-        await peerManager.DownloadTorrent();
+        return await peerManager.DownloadTorrent();
     }
 }
