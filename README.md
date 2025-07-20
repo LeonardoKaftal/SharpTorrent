@@ -45,8 +45,6 @@ cd SharpTorrent
 cd SharpTorrent
 dotnet build
 dotnet run -- path/to/file.torrent path/to/download/folder
-🎥 Demo
-Guarda SharpTorrent in azione:
 ```
 
 
