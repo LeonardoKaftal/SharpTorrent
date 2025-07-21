@@ -40,7 +40,7 @@
 ## ▶️ Quick Start
 
 ```bash
-git clone https://github.com/your-username/sharptorrent.git
+git clone https://github.com/LeonardoKaftal/SharpTorrent.git
 cd SharpTorrent
 cd SharpTorrent
 dotnet build
