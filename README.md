@@ -32,7 +32,7 @@
 
 ## 🛠 Requirements
 
-- .NET 8.0+
+- .NET 9.0+
 - Compatible with Windows, Linux, and macOS
 
 ---
