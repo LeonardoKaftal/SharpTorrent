@@ -1,4 +1,4 @@
-# 🚀 SharpTorrent
+# SharpTorrent
 
 **SharpTorrent** is a crossplatform torrent client written in **C#**, implementing the [BitTorrent Protocol Specification v1 (BEP 0003)](https://www.bittorrent.org/beps/bep_0003.html).
 
@@ -22,7 +22,7 @@
 
 ---
 
-## 📂 Architecture Overview
+## Architecture Overview
 
 - `P2P`: Manages TCP peer connections, message parsing, bitfield exchange
 - `Tracker`: Parses `.torrent` files and communicates with UDP trackers
@@ -30,7 +30,7 @@
 
 ---
 
-## 🛠 Requirements
+## Requirements
 
 - .NET 9.0+
 - Compatible with Windows, Linux, and macOS
