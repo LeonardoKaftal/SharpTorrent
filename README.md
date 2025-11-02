@@ -24,9 +24,9 @@
 
 ## Architecture Overview
 
-- `P2P`: Manages TCP peer connections, message parsing, bitfield exchange
-- `Tracker`: Parses `.torrent` files and communicates with UDP trackers
-- `Disk`: Manages file writing, piece verification, and download state
+- P2P: Manages TCP peer connections, message parsing, bitfield exchange
+- Tracker: Parses .torrent` files and communicates with UDP trackers
+- Disk: Manages file writing, piece verification, and download state
 
 ---
 
