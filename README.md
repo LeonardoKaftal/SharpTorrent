@@ -33,7 +33,6 @@
 
 - ⏳ Support for **Magnet Links**
 - ⏳ **DHT (Distributed Hash Table)** support
-- ⏳ Message encryption (BEP 6 / BEP 10)
 
 ---
 
