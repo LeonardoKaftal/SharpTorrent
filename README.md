@@ -4,21 +4,13 @@
 
 ---
 
-## 📌 Key Features
+## Key Features
 
 - ✅ **Supports both IPv4 and IPv6**
 - ✅ **UDP tracker support**
 - ✅ **Handles multiple peer connections**
 - ✅ **Download state recovery** after interruptions
 - ✅ Fully handles **Bitfield, Request, Piece, Choke/Unchoke** messages
-
----
-
-## 🧪 Features in Progress
-
-- ⏳ Support for **Magnet Links**
-- ⏳ **DHT (Distributed Hash Table)** support
-- ⏳ Message encryption (BEP 6 / BEP 10)
 
 ---
 
@@ -34,6 +26,14 @@
 
 - .NET 9.0+
 - Compatible with Windows, Linux, and macOS
+
+---
+
+## 🧪 Features in Progress
+
+- ⏳ Support for **Magnet Links**
+- ⏳ **DHT (Distributed Hash Table)** support
+- ⏳ Message encryption (BEP 6 / BEP 10)
 
 ---
 
